@@ -1848,3 +1848,128 @@ Vou comparar este baseline com cada tela real e devolver:
 - Formulário de Agendar Atendimento salva rascunho, salva e fecha, e inicia atendimento com confirmação.
 - Fluxo de pagamento parcial/total com reconciliação de somatórios.
 - Logs de auditoria gerados para ações críticas.
+
+
+---
+
+## 10) Consolidação final para implementação por sprint
+
+### 10.1 Ajustes cirúrgicos de layout e fluxo
+
+#### A) Modal **Agendar Atendimento** (desktop-first)
+1. **Hierarquia visual do bloco superior**:
+   - Linha 1: Paciente (avatar + nome) | status do atendimento | ações rápidas.
+   - Linha 2: Serviço + valor + tempo previsto + modalidade (campos mais usados na sequência clínica).
+   - Linha 3: Recorrência + contratação + profissional + especialidade.
+2. **Barra de ações fixa no rodapé** do modal:
+   - Ordem recomendada: `Cancelar` → `Salvar` → `Salvar e fechar` → `Iniciar atendimento`.
+   - Botão primário deve alternar entre `Salvar` e `Iniciar atendimento` conforme estado do formulário.
+3. **Campo “Mais opções” com baixa fricção**:
+   - Buscar por texto livre sem exigir clique em ícone.
+   - Mostrar resultado com metadados (categoria, duração padrão, tipo).
+4. **Fluxo de início de atendimento**:
+   - Clique em “Iniciar atendimento” abre confirmação curta.
+   - Confirmação positiva leva para estado de loading curto e muda status para “Em atendimento”.
+5. **Feedback de persistência**:
+   - `Salvar` mantém modal aberto + toast.
+   - `Salvar e fechar` fecha modal + atualiza slot na agenda sem reload global.
+
+#### B) Modal **Pagamento**
+1. Exibir resumo financeiro no topo: `Valor total`, `Total lançado`, `Total quitado`, `Diferença`.
+2. Destacar visualmente linhas inconsistentes (borda/ícone de erro).
+3. Mostrar estado por linha com badge: `Pago` / `Não pago`.
+4. Em cartão de crédito, exibir bloco de parcelas e taxa somente quando aplicável (progressive disclosure).
+5. Manter CTA “Salvar” bloqueado enquanto diferença financeira ≠ 0.
+
+#### C) Agenda (tela mãe)
+1. Atualização pontual de célula/evento após salvar (evitar refresh total da grade).
+2. Exibir badge de status do atendimento com legenda consistente entre agenda e modal.
+3. Manter padrão de confirmação para transições críticas (ex.: iniciar/cancelar).
+
+### 10.2 Delta de componentes e tokens
+
+#### Componentes (novo delta incremental)
+- **AppointmentActionBar**: barra fixa de ações com estados (idle/saving/starting/disabled).
+- **SmartSearchSelect**: select pesquisável com lista virtualizada e metadados por opção.
+- **RecurringRuleBuilder**: construtor de recorrência (preset + custom).
+- **PaymentLinesTable**: tabela/grade de linhas de pagamento com remoção, validação e totais.
+- **InlineStatusBadge**: badge padronizado para status clínico/financeiro.
+- **CriticalConfirmModal**: modal único para confirmações sensíveis (`Iniciar atendimento`, `Não pago`, etc.).
+- **StickySummaryFooter** (opcional): resumo financeiro fixo no modal de pagamento.
+
+#### Tokens/estilo (delta)
+- **Spacing**:
+  - `space-2` entre label e input.
+  - `space-4` entre campos relacionados na mesma linha.
+  - `space-6` entre blocos funcionais no modal.
+- **Radius**:
+  - `radius-md` em inputs/cards.
+  - `radius-lg` em modais principais.
+- **Feedback de estado**:
+  - `color-warning` para divergência financeira.
+  - `color-success` para persistência e estados quitados.
+  - `color-danger` para ações destrutivas/bloqueios de validação.
+- **Tipografia**:
+  - Label: 12–13px semibold.
+  - Valor financeiro/totais: 14–16px semibold para escaneabilidade.
+- **Densidade**:
+  - Altura de campo padrão `40px` e compacto `32px` para filtros.
+
+### 10.3 Regras adicionais de validação e segurança
+
+#### Validação funcional
+1. **Conflito de agenda**: bloquear salvar em choque de horário de profissional/paciente (exceto override com permissão).
+2. **Reagendamento**: exigir motivo e registrar horário anterior + novo horário.
+3. **Recorrência personalizada**: validar intervalo > 0 e condição de término obrigatória.
+4. **Pagamento**:
+   - Soma das linhas deve fechar com valor total cobrado.
+   - Parcelas obrigatórias quando forma = cartão.
+   - Valor de linha > 0 em todas as linhas ativas.
+5. **Iniciar atendimento**:
+   - Só permitir com campos mínimos válidos e sem erro financeiro bloqueante quando pagamento for obrigatório pela clínica.
+
+#### Segurança e rastreabilidade
+1. **RBAC de ação crítica**:
+   - Secretária pode salvar agendamento.
+   - Iniciar atendimento e override de conflito exigem perfil autorizado.
+2. **Auditoria obrigatória** para:
+   - alteração de valor,
+   - marcação “Não pago”,
+   - reagendamento,
+   - início de atendimento,
+   - exclusão de linha de pagamento.
+3. **Mascaramento em lista**:
+   - dados sensíveis (CPF/documentos) mascarados fora da tela de detalhe.
+4. **Confirmações críticas com contexto**:
+   - texto deve citar impacto (“financeiro”, “mudança de status clínico”).
+5. **Proteção contra dupla submissão**:
+   - desabilitar CTA durante `saving/starting` para evitar duplicidade de registro.
+
+### 10.4 Versão consolidada pronta para implementação por sprint
+
+#### Sprint 1 — Fundação e agenda operacional
+- Implementar `AppointmentActionBar`, `SmartSearchSelect`, fluxo `Salvar`/`Salvar e fechar`.
+- Implementar validação de conflito de agenda + mensagens de erro.
+- Entrega: modal de agendamento funcional com persistência básica e feedback.
+
+#### Sprint 2 — Recorrência e reagendamento
+- Implementar `RecurringRuleBuilder` com presets + custom.
+- Implementar ação `Reagendar` com motivo obrigatório e log.
+- Entrega: agendamento recorrente e reagendamento auditável.
+
+#### Sprint 3 — Financeiro integrado
+- Implementar `PaymentLinesTable`, badges, totais e bloqueio por divergência.
+- Implementar confirmação de “Não pago” e regras de parcelas/taxa.
+- Entrega: modal de pagamento completo com reconciliação.
+
+#### Sprint 4 — Segurança, hardening e QA
+- Aplicar RBAC fino por ação crítica.
+- Completar auditoria de eventos-chave.
+- Rodar smoke tests de ponta a ponta (agendar, salvar, iniciar, pagamento, reagendar).
+- Entrega: versão pronta para piloto interno da clínica.
+
+#### Definição de pronto (DoD) por sprint
+- Critérios funcionais atendidos.
+- Mensagens de erro/microcopy validadas com time clínico.
+- Logs de auditoria visíveis no módulo de auditoria.
+- Sem erros críticos de navegação/estado em fluxo principal.
