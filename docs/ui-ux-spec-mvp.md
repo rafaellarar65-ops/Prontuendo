@@ -1808,3 +1808,43 @@ Vou comparar este baseline com cada tela real e devolver:
 2. delta de componentes/tokens,
 3. regras adicionais de validação e segurança,
 4. versão consolidada pronta para implementação por sprint.
+
+
+---
+
+## 9) Deploy e run das telas (guia operacional para o dev)
+
+> Status no repositório atual: **não há frontend executável** (apenas documentação).  
+> Para permitir deploy/run das telas, o projeto precisa incluir uma aplicação (ex.: Next.js) com `package.json` e rotas implementadas.
+
+### 9.1 Pré-requisitos mínimos para execução
+1. Projeto Next.js inicializado na raiz (ou em `apps/web`).
+2. Script `dev` para execução local (`next dev`).
+3. Script `build` (`next build`) e `start` (`next start`).
+4. Variáveis `.env` mínimas documentadas (API base URL, auth secret etc.).
+5. Rotas do MVP criadas conforme seção de IA/rotas desta especificação.
+
+### 9.2 Comandos padrão (quando o frontend existir)
+- Instalação: `npm install`
+- Desenvolvimento: `npm run dev`
+- Build: `npm run build`
+- Produção local: `npm run start`
+
+### 9.3 Checklist de deploy (Vercel ou equivalente)
+1. Conectar repositório ao provedor.
+2. Definir comando de build (`npm run build`) e output do Next.js.
+3. Configurar variáveis de ambiente por ambiente (preview/prod).
+4. Habilitar proteção de rota por autenticação e RBAC.
+5. Validar smoke test pós-deploy:
+   - Login
+   - Dashboard
+   - Agenda
+   - Pacientes
+   - Paciente > Atendimentos > Agendar atendimento
+
+### 9.4 Critérios de aceite para “telas rodando”
+- Navegação entre rotas sem erro 500.
+- Estados de loading/empty/error funcionando nas telas principais.
+- Formulário de Agendar Atendimento salva rascunho, salva e fecha, e inicia atendimento com confirmação.
+- Fluxo de pagamento parcial/total com reconciliação de somatórios.
+- Logs de auditoria gerados para ações críticas.
