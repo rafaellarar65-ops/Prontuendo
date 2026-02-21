@@ -1,0 +1,862 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DOCTOR
+  RECEPTIONIST
+  ADMIN
+  PATIENT
+}
+
+enum BiologicalSex {
+  MALE
+  FEMALE
+  INTERSEX
+  NOT_INFORMED
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ConsentStatus {
+  GIVEN
+  REVOKED
+  EXPIRED
+}
+
+enum ConsultationStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  SIGNED
+  CANCELED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+enum DocumentType {
+  PRESCRIPTION
+  CERTIFICATE
+  REPORT
+  AI_REPORT
+  LAB_ORDER
+  CONSENT
+  BIOIMPEDANCE
+  OTHER
+}
+
+enum SignatureStatus {
+  PENDING
+  SIGNED
+  REJECTED
+}
+
+enum ReminderChannel {
+  PUSH
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum ServiceContractType {
+  PRIVATE
+  INSURANCE
+  SOCIAL
+}
+
+enum ServiceType {
+  FIRST_CONSULTATION
+  FOLLOW_UP
+  PROCEDURE
+  EXAM
+  OTHER
+}
+
+enum AuditAction {
+  INSERT
+  UPDATE
+  DELETE
+  ACCESS
+  EXPORT
+}
+
+model User {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  email           String   @unique
+  passwordHash    String
+  role            UserRole
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  profile         UserProfile?
+  clinicUsers     ClinicUser[]
+  auditLogs       AuditLog[] @relation("auditActor")
+}
+
+model UserProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  userId          String   @unique @db.Uuid
+  fullName        String
+  specialty       String?
+  crm             String?
+  cpf             String?
+  phone           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Clinic {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  name            String
+  cnpj            String?
+  phone           String?
+  color           String?
+  logoUrl         String?
+  address         Json?
+  settings        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  clinicUsers     ClinicUser[]
+  services        ServiceDefinition[]
+  appointments    Appointment[]
+  timeSlots       TimeSlot[]
+}
+
+model ClinicUser {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  clinicId        String   @db.Uuid
+  userId          String   @db.Uuid
+  roleAtClinic    UserRole
+  permissions     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  clinic          Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+}
+
+model Patient {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @db.Uuid
+  clinicId             String?  @db.Uuid
+  fullName             String
+  preferredName        String?
+  birthDate            DateTime
+  biologicalSex        BiologicalSex
+  genderIdentity       String?
+  cpf                  String   @unique
+  rg                   String?
+  whatsapp             String
+  email                String?
+  maritalStatus        String?
+  occupation           String?
+  educationLevel       String?
+  nationality          String?
+  naturalness          String?
+  fatherName           String?
+  motherName           String?
+  emergencyName        String?
+  emergencyRelation    String?
+  emergencyPhone       String?
+  healthPlanProvider   String?
+  healthPlanName       String?
+  healthPlanNumber     String?
+  clinicalNotes        String?
+  tags                 Json?
+  status               RecordStatus @default(ACTIVE)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  deletedAt            DateTime?
+  createdBy            String? @db.Uuid
+  updatedBy            String? @db.Uuid
+  addresses            PatientAddress[]
+  consents             PatientConsent[]
+  portalAccount        PatientPortalAccount?
+  consultations        Consultation[]
+  bioimpedanceExams    BioimpedanceExam[]
+  glucoseLogs          GlucoseLog[]
+  glucoseTargets       GlucoseTarget[]
+  glucoseReminders     GlucoseReminder[]
+  labResults           LabResult[]
+  examRequests         ExamRequest[]
+  medicalDocuments     MedicalDocument[]
+  prescriptions        Prescription[]
+  scoreResults         ClinicalScoreResult[]
+  appointments         Appointment[]
+  aiInteractionLogs    AIInteractionLog[]
+  aiExtractionResults  AIExtractionResult[]
+}
+
+model PatientAddress {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  zipCode         String
+  street          String
+  number          String
+  complement      String?
+  neighborhood    String
+  city            String
+  state           String
+  isPrimary       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model PatientConsent {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @db.Uuid
+  patientId       String        @db.Uuid
+  consentType     String
+  status          ConsentStatus
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  ipAddress       String?
+  userAgent       String?
+  termsVersion    String
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?       @db.Uuid
+  updatedBy       String?       @db.Uuid
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model PatientPortalAccount {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @db.Uuid
+  patientId            String   @unique @db.Uuid
+  email                String   @unique
+  passwordHash         String
+  isActive             Boolean  @default(true)
+  verifiedAt           DateTime?
+  lastLoginAt          DateTime?
+  resetToken           String?
+  resetTokenExpiresAt  DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  deletedAt            DateTime?
+  createdBy            String?  @db.Uuid
+  updatedBy            String?  @db.Uuid
+  patient              Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Consultation {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String   @db.Uuid
+  patientId           String   @db.Uuid
+  doctorId            String   @db.Uuid
+  appointmentId       String?  @db.Uuid
+  versionGroupId      String   @db.Uuid
+  versionNumber       Int      @default(1)
+  previousVersionId   String?  @db.Uuid
+  status              ConsultationStatus @default(DRAFT)
+  consultationDate    DateTime
+  reason              String?
+  contentJson         Json?
+  aiSummary           String?
+  signedAt            DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+  createdBy           String?  @db.Uuid
+  updatedBy           String?  @db.Uuid
+  patient             Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  soapRecord          SOAPRecord?
+  anamnesisRecord     AnamnesisRecord?
+  physicalExam        PhysicalExam?
+  diagnoses           Diagnosis[]
+
+  @@unique([versionGroupId, versionNumber])
+}
+
+model SOAPRecord {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  consultationId  String   @unique @db.Uuid
+  subjective      String?
+  objective       String?
+  assessment      String?
+  plan            String?
+  rawData         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model AnamnesisRecord {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  consultationId  String   @unique @db.Uuid
+  chiefComplaint  String?
+  historyPresentIllness String?
+  pastIllnesses   String?
+  surgeries       String?
+  allergies       String?
+  currentMeds     String?
+  familyHistory   String?
+  socialHistory   String?
+  lifestyleData   Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model PhysicalExam {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  consultationId  String   @unique @db.Uuid
+  bloodPressure   String?
+  heartRate       String?
+  respiratoryRate String?
+  temperature     String?
+  oxygenSaturation String?
+  weightKg        Decimal? @db.Decimal(5,2)
+  heightCm        Decimal? @db.Decimal(5,2)
+  bmi             Decimal? @db.Decimal(5,2)
+  narrativeText   String?
+  systemsJson     Json?
+  structuredJson  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model Diagnosis {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  consultationId  String   @db.Uuid
+  cid10Code       String?
+  diagnosisText   String
+  riskLevel       String?
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model BioimpedanceExam {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  examDate        DateTime
+  deviceName      String?
+  weightKg        Decimal? @db.Decimal(5,2)
+  bodyFatPct      Decimal? @db.Decimal(5,2)
+  muscleMassKg    Decimal? @db.Decimal(5,2)
+  visceralFatLevel Decimal? @db.Decimal(5,2)
+  segmentData     Json
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  circumferences  BodyCircumference[]
+}
+
+model BodyCircumference {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @db.Uuid
+  bioimpedanceExamId String  @db.Uuid
+  region            String
+  valueCm           Decimal  @db.Decimal(5,2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+  createdBy         String?  @db.Uuid
+  updatedBy         String?  @db.Uuid
+  bioimpedanceExam  BioimpedanceExam @relation(fields: [bioimpedanceExamId], references: [id], onDelete: Cascade)
+}
+
+model GlucoseLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  measuredAt      DateTime
+  glucoseMgDl     Int
+  context         String?
+  notes           String?
+  source          String? // GlicoCare, portal, manual
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model GlucoseTarget {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  period          String
+  minMgDl         Int
+  maxMgDl         Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model GlucoseReminder {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  title           String
+  scheduleCron    String?
+  hourOfDay       String?
+  timezone        String?
+  channel         ReminderChannel
+  active          Boolean  @default(true)
+  payload         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model LabResult {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  examDate        DateTime
+  source          String?
+  fileUrl         String?
+  summary         String?
+  rawJson         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items           LabResultItem[]
+}
+
+model LabResultItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  labResultId     String   @db.Uuid
+  name            String
+  value           Decimal? @db.Decimal(10,2)
+  textValue       String?
+  unit            String?
+  referenceRange  String?
+  status          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  labResult       LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+}
+
+model ExamRequest {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  consultationId  String?  @db.Uuid
+  requestedAt     DateTime @default(now())
+  notes           String?
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items           ExamRequestItem[]
+}
+
+model ExamRequestItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  examRequestId   String   @db.Uuid
+  examName        String
+  loincCode       String?
+  urgency         String?
+  instructions    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  examRequest     ExamRequest @relation(fields: [examRequestId], references: [id], onDelete: Cascade)
+}
+
+model MedicalDocument {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  consultationId  String?  @db.Uuid
+  templateId      String?  @db.Uuid
+  documentType    DocumentType
+  title           String
+  contentJson     Json
+  renderedPdfUrl  String?
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  signatures      DocumentSignature[]
+}
+
+model DocumentTemplateV2 {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  name            String
+  description     String?
+  documentType    DocumentType
+  schemaVersion   Int      @default(2)
+  contentJson     Json
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+}
+
+model DocumentSignature {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  documentId      String   @db.Uuid
+  signerUserId    String?  @db.Uuid
+  signerPatientId String?  @db.Uuid
+  signedAt        DateTime?
+  status          SignatureStatus
+  certificateData Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  document        MedicalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Prescription {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  consultationId  String?  @db.Uuid
+  prescribedAt    DateTime @default(now())
+  notes           String?
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items           PrescriptionItem[]
+}
+
+model PrescriptionItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  prescriptionId  String   @db.Uuid
+  medicationName  String
+  dosage          String
+  route           String?
+  frequency       String
+  durationDays    Int?
+  instructions    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
+
+model Disease {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  code            String
+  name            String
+  synonyms        Json?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+}
+
+model Medication {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  name            String
+  activeIngredient String?
+  atcCode         String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+}
+
+model ClinicalProtocol {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @db.Uuid
+  parentProtocolId   String?  @db.Uuid
+  name               String
+  diseaseId          String?  @db.Uuid
+  protocolType       String
+  version            Int      @default(1)
+  consensusSource    String? // IA/humano
+  recommendationJson Json
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+  createdBy          String?  @db.Uuid
+  updatedBy          String?  @db.Uuid
+}
+
+model ClinicalScoreDefinition {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  name            String
+  description     String?
+  formulaJson     Json
+  variablesJson   Json
+  category        String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  results         ClinicalScoreResult[]
+}
+
+model ClinicalScoreResult {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @db.Uuid
+  patientId        String   @db.Uuid
+  consultationId   String?  @db.Uuid
+  definitionId     String   @db.Uuid
+  scoreValue       Decimal  @db.Decimal(10,2)
+  classification   String?
+  variablesInput   Json
+  calculatedAt     DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+  createdBy        String?  @db.Uuid
+  updatedBy        String?  @db.Uuid
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  definition       ClinicalScoreDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+}
+
+model Appointment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  clinicId        String?  @db.Uuid
+  patientId       String?  @db.Uuid
+  doctorId        String   @db.Uuid
+  serviceId       String?  @db.Uuid
+  startsAt        DateTime
+  endsAt          DateTime
+  status          AppointmentStatus
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  clinic          Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  patient         Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  service         ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+}
+
+model TimeSlot {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  clinicId        String   @db.Uuid
+  doctorId        String   @db.Uuid
+  startAt         DateTime
+  endAt           DateTime
+  isBooked        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  clinic          Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+model ServiceDefinition {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  clinicId        String?  @db.Uuid
+  name            String
+  active          Boolean  @default(true)
+  type            ServiceType
+  contractType    ServiceContractType
+  price           Decimal  @db.Decimal(10,2)
+  durationMinutes Int
+  color           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  clinic          Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  appointments    Appointment[]
+}
+
+model TemplateElement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  templateId      String   @db.Uuid
+  elementType     String
+  positionJson    Json
+  styleJson       Json?
+  contentJson     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+}
+
+model AuditLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  actorUserId     String?  @db.Uuid
+  action          AuditAction
+  entityName      String
+  entityId        String?
+  oldData         Json?
+  newData         Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  actor           User?    @relation("auditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+}
+
+model AccessLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  actorUserId     String?  @db.Uuid
+  patientId       String?  @db.Uuid
+  resource        String
+  action          String
+  ipAddress       String?
+  userAgent       String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+}
+
+model DataExportLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  requestedById   String   @db.Uuid
+  patientId       String?  @db.Uuid
+  exportType      String
+  format          String
+  purpose         String
+  legalBasis      String
+  status          String
+  checksum        String?
+  createdAt       DateTime @default(now())
+}
+
+model AIInteractionLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String?  @db.Uuid
+  consultationId  String?  @db.Uuid
+  userId          String?  @db.Uuid
+  prompt          String
+  response        String
+  model           String
+  latencyMs       Int?
+  tokensInput     Int?
+  tokensOutput    Int?
+  piiRedacted     Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  patient         Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+}
+
+model AIExtractionResult {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String?  @db.Uuid
+  consultationId  String?  @db.Uuid
+  sourceType      String
+  sourceRef       String?
+  extractedJson   Json
+  confidenceScore Decimal? @db.Decimal(5,2)
+  validatedById   String?  @db.Uuid
+  validatedAt     DateTime?
+  createdAt       DateTime @default(now())
+  patient         Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+}
