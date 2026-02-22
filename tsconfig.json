@@ -1,24 +1,29 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": false,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
-    }
+      "@/*": ["src/*"]
+    },
+    "types": ["vitest/globals", "vite/client"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src", "vite.config.ts", "tailwind.config.ts", "vitest.setup.ts"],
+  "exclude": ["node_modules", "dist"]
 }
