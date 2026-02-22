@@ -1,45 +1,25 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { CommandPalette } from '@/components/layout/command-palette';
 import { AppShell } from '@/components/layout/app-shell';
-import { SchedulePage } from '@/pages/agenda/schedule-page';
-import { ClinicsPage } from '@/pages/clinicas/clinics-page';
-import { SettingsPage } from '@/pages/configuracoes/settings-page';
-import { DashboardPage } from '@/pages/dashboard-page';
-import { ScoresPage } from '@/pages/escores/scores-page';
-import { ExamsPage } from '@/pages/exames/exams-page';
-import { BioimpedancePage } from '@/pages/bioimpedance-page';
-import { NewConsultationPage } from '@/pages/new-consultation-page';
-import { PatientProfilePage } from '@/pages/patient-profile-page';
-import { PatientsListPage } from '@/pages/patients-list-page';
-import { ProtocolsPage } from '@/pages/protocolos/protocols-page';
-import { TemplateBuilderPage } from '@/pages/template-builder-page';
-import { TemplatesPage } from '@/pages/templates/templates-page';
-
-const ShellWithPalette = () => (
-  <>
-    <AppShell />
-    <CommandPalette />
-  </>
-);
+import { DocumentsPage } from '@/pages/patient/documents-page';
+import { ExamsUploadPage } from '@/pages/patient/exams-upload-page';
+import { GlucosePage } from '@/pages/patient/glucose-page';
+import { HomePage } from '@/pages/patient/home-page';
+import { LoginPage } from '@/pages/patient/login-page';
+import { ProfilePage } from '@/pages/patient/profile-page';
+import { QuestionnairePage } from '@/pages/patient/questionnaire-page';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <ShellWithPalette />,
+    element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'pacientes', element: <PatientsListPage /> },
-      { path: 'pacientes/:patientId', element: <PatientProfilePage /> },
-      { path: 'consultas/nova', element: <NewConsultationPage /> },
-      { path: 'bioimpedancia', element: <BioimpedancePage /> },
-      { path: 'exames', element: <ExamsPage /> },
-      { path: 'protocolos', element: <ProtocolsPage /> },
-      { path: 'escores', element: <ScoresPage /> },
-      { path: 'agenda', element: <SchedulePage /> },
-      { path: 'clinicas', element: <ClinicsPage /> },
-      { path: 'configuracoes', element: <SettingsPage /> },
-      { path: 'templates', element: <TemplatesPage /> },
-      { path: 'templates/builder', element: <TemplateBuilderPage /> },
+      { index: true, element: <HomePage /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'glicemia', element: <GlucosePage /> },
+      { path: 'exames', element: <ExamsUploadPage /> },
+      { path: 'documentos', element: <DocumentsPage /> },
+      { path: 'questionario', element: <QuestionnairePage /> },
+      { path: 'perfil', element: <ProfilePage /> },
     ],
   },
 ]);
