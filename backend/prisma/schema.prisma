@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEDICO
+  RECEPCAO
+  PATIENT
+}
+
+enum ConsultationStatus {
+  DRAFT
+  FINALIZED
+}
+
+model Tenant {
+  id               String            @id @default(cuid())
+  name             String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  users            User[]
+  patients         Patient[]
+  activityLogs     ActivityLog[]
+  consultations    Consultation[]
+  glucoseLogs      GlucoseLog[]
+  labResults       LabResult[]
+  bioimpedanceExams BioimpedanceExam[]
+}
+
+model User {
+  id            String         @id @default(cuid())
+  tenantId      String
+  email         String
+  passwordHash  String
+  fullName      String
+  role          Role
+  patientLinkId String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  patientLink   Patient?       @relation(fields: [patientLinkId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@unique([tenantId, email])
+  @@unique([id, tenantId])
+  @@index([tenantId, role])
+}
+
+model Patient {
+  id               String            @id @default(cuid())
+  tenantId         String
+  fullName         String
+  cpf              String?
+  birthDate        DateTime?
+  tags             String[]
+  lifecycle        String            @default("ACTIVE")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  portalUsers      User[]
+  consultations    Consultation[]
+  glucoseLogs      GlucoseLog[]
+  labResults       LabResult[]
+  bioimpedanceExams BioimpedanceExam[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, fullName])
+  @@index([tenantId, lifecycle])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId, expiresAt])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  actorId   String
+  action    String
+  resource  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+}
+
+model Consultation {
+  id          String             @id @default(cuid())
+  tenantId    String
+  patientId   String
+  clinicianId String
+  status      ConsultationStatus @default(DRAFT)
+  latestDraft Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  finalizedAt DateTime?
+  patient     Patient            @relation(fields: [patientId], references: [id])
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  versions    ConsultationVersion[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, patientId, status])
+  @@index([tenantId, updatedAt])
+}
+
+model ConsultationVersion {
+  id             String       @id @default(cuid())
+  consultationId String
+  version        Int
+  isFinal        Boolean      @default(false)
+  content        Json
+  hash           String?
+  createdAt      DateTime     @default(now())
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@unique([consultationId, version])
+  @@index([consultationId, isFinal])
+}
+
+model GlucoseLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  patientId String
+  value     Int
+  measuredAt DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  patient   Patient  @relation(fields: [patientId], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, patientId, measuredAt])
+}
+
+model LabResult {
+  id         String   @id @default(cuid())
+  tenantId   String
+  patientId  String
+  examName   String
+  value      Float
+  unit       String?
+  reference  String?
+  resultDate DateTime
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  patient    Patient  @relation(fields: [patientId], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, patientId, resultDate])
+}
+
+model BioimpedanceExam {
+  id          String   @id @default(cuid())
+  tenantId    String
+  patientId   String
+  measuredAt  DateTime
+  weightKg    Float?
+  bodyFatPct  Float?
+  muscleMassKg Float?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  patient     Patient  @relation(fields: [patientId], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, patientId, measuredAt])
+}
