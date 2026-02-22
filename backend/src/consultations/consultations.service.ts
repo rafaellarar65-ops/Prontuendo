@@ -19,7 +19,7 @@ export class ConsultationsService {
         patientId: dto.patientId,
         clinicianId,
         status: ConsultationStatus.DRAFT,
-        latestDraft: {},
+        latestDraft: Prisma.JsonNull,
       },
     });
 
@@ -64,10 +64,12 @@ export class ConsultationsService {
       orderBy: { version: 'desc' },
     });
 
-    const mergedContent = {
-      ...(consultation.latestDraft as Record<string, unknown> | null),
-      ...dto,
-    };
+    const existing = (consultation.latestDraft ?? {}) as Record<string, unknown>;
+    const mergedContent: Record<string, unknown> = { ...existing };
+    if (dto.anamnese) mergedContent['anamnese'] = dto.anamnese;
+    if (dto.exameFisico) mergedContent['exameFisico'] = dto.exameFisico;
+    if (dto.diagnostico) mergedContent['diagnostico'] = dto.diagnostico;
+    if (dto.prescricao) mergedContent['prescricao'] = dto.prescricao;
 
     const nextVersion = (lastVersion?.version ?? 0) + 1;
 
@@ -75,7 +77,7 @@ export class ConsultationsService {
       const updated = await trx.consultation.update({
         where: { id_tenantId: { id, tenantId } },
         data: {
-          latestDraft: mergedContent,
+          latestDraft: mergedContent as Prisma.InputJsonValue,
           clinicianId,
         },
       });
@@ -85,7 +87,7 @@ export class ConsultationsService {
           consultationId: id,
           version: nextVersion,
           isFinal: false,
-          content: mergedContent,
+          content: mergedContent as Prisma.InputJsonValue,
         },
       });
 
@@ -95,7 +97,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'AUTOSAVE',
           resource: 'consultation',
-          metadata: { consultationId: id, version: nextVersion },
+          metadata: { consultationId: id, version: nextVersion } as object,
         },
       });
 
@@ -132,7 +134,7 @@ export class ConsultationsService {
           consultationId: id,
           version,
           isFinal: true,
-          content,
+          content: content as Prisma.InputJsonValue,
           hash,
         },
       });
@@ -143,7 +145,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'FINALIZE',
           resource: 'consultation',
-          metadata: { consultationId: id, version, hash },
+          metadata: { consultationId: id, version, hash } as object,
         },
       });
 

@@ -48,7 +48,7 @@ export class BioimpedanceService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'bioimpedance', metadata },
+      data: { tenantId, actorId, action, resource: 'bioimpedance', metadata: metadata as object },
     });
   }
 }

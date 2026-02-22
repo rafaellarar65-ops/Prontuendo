@@ -60,7 +60,7 @@ export class PatientsService {
           actorId,
           action: 'UPDATE',
           resource: 'patient',
-          metadata: { patientId: id, fields: Object.keys(dto) },
+          metadata: { patientId: id, fields: Object.keys(dto) } as object,
         },
       });
 
@@ -82,7 +82,7 @@ export class PatientsService {
         actorId,
         action,
         resource: 'patient',
-        metadata: { patientId },
+        metadata: { patientId } as object,
       },
     });
   }

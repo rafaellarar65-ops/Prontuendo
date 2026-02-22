@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,7 +14,7 @@ export class AiService {
         actorId,
         action: 'AI_PROXY',
         resource: operation,
-        metadata: payload,
+        metadata: payload as Prisma.InputJsonValue,
       },
     });
 

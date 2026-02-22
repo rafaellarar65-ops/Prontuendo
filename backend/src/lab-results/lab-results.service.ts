@@ -13,7 +13,7 @@ export class LabResultsService {
         tenantId,
         patientId: dto.patientId,
         examName: dto.examName,
-        value: dto.value,
+        value: String(dto.value),
         unit: dto.unit,
         reference: dto.reference,
         resultDate: new Date(dto.resultDate),
@@ -38,7 +38,7 @@ export class LabResultsService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'lab-results', metadata },
+      data: { tenantId, actorId, action, resource: 'lab-results', metadata: metadata as object },
     });
   }
 }

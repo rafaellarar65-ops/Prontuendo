@@ -233,7 +233,7 @@ export const TemplateEditor = () => {
         </section>
         <section>
           <h2 className="font-semibold">Camadas</h2>
-          <ul className="mt-2 space-y-1 text-xs">{layerObjects.map((obj: any, i) => <li className="rounded border px-2 py-1" key={`${obj.type}-${i}`}>{obj.type}</li>)}</ul>
+          <ul className="mt-2 space-y-1 text-xs">{layerObjects.map((obj: any, i: number) => <li className="rounded border px-2 py-1" key={`${obj.type}-${i}`}>{obj.type}</li>)}</ul>
         </section>
         <section>
           <h2 className="font-semibold">Variáveis</h2>
