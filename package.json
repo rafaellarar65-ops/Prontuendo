@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "npm run typecheck",
+    "typecheck": "tsc --noEmit",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",
