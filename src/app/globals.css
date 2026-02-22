@@ -4,18 +4,24 @@
 
 :root {
   --background: 210 40% 98%;
-  --foreground: 224 71% 4%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --muted: 214 32% 91%;
-  --muted-foreground: 215 16% 45%;
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
-  --danger: 0 84% 60%;
-  --radius: 0.75rem;
+  --foreground: 224 71% 8%;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
+  @apply bg-slate-50 text-slate-950 antialiased;
   font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  min-height: 44px;
 }
