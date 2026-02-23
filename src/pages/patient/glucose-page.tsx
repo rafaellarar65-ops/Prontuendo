@@ -71,7 +71,7 @@ export const GlucosePage = () => {
       value: parsedValue,
       measuredAt: new Date().toISOString(),
       note,
-      photoDataUrl,
+      ...(photoDataUrl !== undefined ? { photoDataUrl } : {}),
     });
 
     setEntries(loadGlucoseEntries());
