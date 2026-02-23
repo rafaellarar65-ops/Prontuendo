@@ -11,7 +11,9 @@ export const NewConsultationPage = () => {
   useEffect(() => {
     if (!selectedTemplateId && data && data.length > 0) {
       const defaultTemplate = data.find((template) => template.isDefault) ?? data[0];
-      setSelectedTemplateId(defaultTemplate.id);
+      if (defaultTemplate) {
+        setSelectedTemplateId(defaultTemplate.id);
+      }
     }
   }, [data, selectedTemplateId, setSelectedTemplateId]);
 
