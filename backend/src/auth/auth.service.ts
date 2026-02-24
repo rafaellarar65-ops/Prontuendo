@@ -3,7 +3,7 @@ import { randomUUID, createHash } from 'crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role, User } from '@prisma/client';
+import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -111,7 +111,7 @@ export class AuthService {
         tenantId: user.tenantId,
         email: user.email,
         fullName: user.fullName,
-        roles: [user.role as Role],
+        roles: [user.role],
       },
       accessToken,
       refreshToken,
