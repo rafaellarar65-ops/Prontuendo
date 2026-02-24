@@ -18,3 +18,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1pyNjetdrdqmXXjm2SCFxjs
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Docker notes
+
+- The provided container image starts `nginx` in the foreground.
+- If you see log lines like `signal 3 (SIGQUIT) received, shutting down` followed by many `gracefully shutting down` worker messages, that means the container received a stop signal and exited cleanly.
+- To keep it running for local checks, start it in detached mode (`docker compose up -d`) and inspect logs with `docker compose logs -f`.
