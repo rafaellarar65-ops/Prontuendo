@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConsultationStatus, Prisma } from '@prisma/client';
 
+import { toPrismaJson } from '../common/utils/prisma-json.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 import { ListConsultationsDto } from './dto/list-consultations.dto';
@@ -67,7 +68,7 @@ export class ConsultationsService {
     const mergedContent = {
       ...(consultation.latestDraft as Record<string, unknown> | null),
       ...dto,
-    };
+    } as Prisma.InputJsonObject;
 
     const nextVersion = (lastVersion?.version ?? 0) + 1;
 
@@ -75,7 +76,7 @@ export class ConsultationsService {
       const updated = await trx.consultation.update({
         where: { id_tenantId: { id, tenantId } },
         data: {
-          latestDraft: mergedContent,
+          latestDraft: toPrismaJson(mergedContent),
           clinicianId,
         },
       });
@@ -85,7 +86,7 @@ export class ConsultationsService {
           consultationId: id,
           version: nextVersion,
           isFinal: false,
-          content: mergedContent,
+          content: toPrismaJson(mergedContent),
         },
       });
 
@@ -95,7 +96,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'AUTOSAVE',
           resource: 'consultation',
-          metadata: { consultationId: id, version: nextVersion },
+          metadata: toPrismaJson({ consultationId: id, version: nextVersion }),
         },
       });
 
@@ -115,7 +116,7 @@ export class ConsultationsService {
     });
 
     const version = (lastVersion?.version ?? 0) + 1;
-    const content = (consultation.latestDraft ?? {}) as Record<string, unknown>;
+    const content = (consultation.latestDraft ?? {}) as Prisma.InputJsonObject;
     const hash = createHash('sha256').update(JSON.stringify(content)).digest('hex');
 
     return this.prisma.$transaction(async (trx) => {
@@ -132,7 +133,7 @@ export class ConsultationsService {
           consultationId: id,
           version,
           isFinal: true,
-          content,
+          content: toPrismaJson(content),
           hash,
         },
       });
@@ -143,7 +144,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'FINALIZE',
           resource: 'consultation',
-          metadata: { consultationId: id, version, hash },
+          metadata: toPrismaJson({ consultationId: id, version, hash }),
         },
       });
 

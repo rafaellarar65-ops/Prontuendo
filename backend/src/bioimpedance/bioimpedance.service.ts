@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { toPrismaJson } from '../common/utils/prisma-json.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBioimpedanceDto } from './dto/create-bioimpedance.dto';
 
@@ -48,7 +49,7 @@ export class BioimpedanceService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'bioimpedance', metadata },
+      data: { tenantId, actorId, action, resource: 'bioimpedance', metadata: toPrismaJson(metadata) },
     });
   }
 }
