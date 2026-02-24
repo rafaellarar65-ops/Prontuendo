@@ -2,7 +2,10 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiErrorPayload } from '@/types/api';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_URL ??
+  'http://localhost:3000';
 
 const attachAuthHeader = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
   const token = useAuthStore.getState().tokens?.accessToken;
