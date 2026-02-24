@@ -20,6 +20,17 @@ export const LoginPage = () => {
         <p className="mt-1 text-base text-slate-700">Acesso seguro do paciente</p>
       </div>
 
+      <div className="mb-4 rounded-2xl border-2 border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+        <p className="mb-2 font-semibold text-blue-900">Como fazer login:</p>
+        <ol className="list-decimal space-y-1 pl-4">
+          <li>Use o <strong>e-mail cadastrado</strong> na clínica do seu médico.</li>
+          <li>Digite a <strong>senha</strong> que você criou ao ativar o portal.</li>
+          <li>Caso seja seu <strong>primeiro acesso</strong>, verifique seu e-mail — você recebeu um convite com instruções para criar sua senha.</li>
+          <li>Esqueceu a senha? Clique em <strong>"Esqueci a senha"</strong> para receber um link de redefinição no seu e-mail.</li>
+          <li>Ainda sem acesso? Entre em contato com a <strong>recepção da clínica</strong>.</li>
+        </ol>
+      </div>
+
       <form className="space-y-4 rounded-2xl border-2 border-slate-300 bg-white p-5" onSubmit={onSubmit}>
         <h1 className="text-2xl font-bold text-slate-900">Entrar</h1>
 
