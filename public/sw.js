@@ -1,5 +1,15 @@
-const CACHE_NAME = 'portal-pacientes-dr-rafael-v2';
-const APP_SHELL = ['/', '/login', '/glicemia', '/exames', '/documentos', '/perfil', '/manifest.webmanifest'];
+const CACHE_NAME = 'portal-prontuendo-shell-v3';
+const PATIENT_APP_SHELL = [
+  '/',
+  '/login',
+  '/glicemia',
+  '/exames',
+  '/documentos',
+  '/perfil',
+  '/manifest.webmanifest',
+];
+const MEDICAL_APP_SHELL = ['/app/', '/app/login'];
+const APP_SHELL = [...PATIENT_APP_SHELL, ...MEDICAL_APP_SHELL];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -18,16 +28,37 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (event.request.mode === 'navigate') {
+    const isMedicalRoute = url.pathname.startsWith('/app');
+    const navigationFallback = isMedicalRoute ? '/app/' : '/login';
+
+    event.respondWith(
+      fetch(event.request)
         .then((response) => {
           const responseClone = response.clone();
           void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
           return response;
         })
-        .catch(() => caches.match('/login'));
+        .catch(async () => {
+          const cachedNavigation = await caches.match(event.request);
+          if (cachedNavigation) return cachedNavigation;
+          return caches.match(navigationFallback);
+        }),
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        const responseClone = response.clone();
+        void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        return response;
+      });
     }),
   );
 });
