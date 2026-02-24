@@ -35,17 +35,28 @@ self.addEventListener('fetch', (event) => {
     const isMedicalRoute = url.pathname.startsWith('/app');
     const navigationFallback = isMedicalRoute ? '/app/' : '/login';
 
+  const requestUrl = new URL(event.request.url);
+  const acceptHeader = event.request.headers.get('accept') || '';
+  const isHtmlNavigation = event.request.mode === 'navigate' || acceptHeader.includes('text/html');
+
+  if (isHtmlNavigation) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const responseClone = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          if (requestUrl.origin === self.location.origin) {
+            const responseClone = response.clone();
+            void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
           return response;
         })
         .catch(async () => {
           const cachedNavigation = await caches.match(event.request);
           if (cachedNavigation) return cachedNavigation;
           return caches.match(navigationFallback);
+          const cachedPage = await caches.match(event.request);
+          if (cachedPage) return cachedPage;
+
+          return (await caches.match('/login')) || caches.match('/index.html');
         }),
     );
     return;
@@ -60,6 +71,15 @@ self.addEventListener('fetch', (event) => {
         return response;
       });
     }),
+    fetch(event.request)
+      .then((response) => {
+        if (requestUrl.origin === self.location.origin) {
+          const responseClone = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request)),
   );
 });
 
