@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { AuthTokens, UserProfile } from '@/types/api';
 
 interface AuthState {
@@ -9,10 +10,15 @@ interface AuthState {
   signOut: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  tokens: null,
-  user: null,
-  isAuthenticated: false,
-  signIn: (tokens, user) => set({ tokens, user, isAuthenticated: true }),
-  signOut: () => set({ tokens: null, user: null, isAuthenticated: false }),
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      tokens: null,
+      user: null,
+      isAuthenticated: false,
+      signIn: (tokens, user) => set({ tokens, user, isAuthenticated: true }),
+      signOut: () => set({ tokens: null, user: null, isAuthenticated: false }),
+    }),
+    { name: 'prontuendo-auth' },
+  ),
+);

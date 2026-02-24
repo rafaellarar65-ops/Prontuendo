@@ -8,6 +8,7 @@ export interface UserProfile {
   name: string;
   email: string;
   role: 'MEDICO' | 'ADMIN' | 'ASSISTENTE';
+  specialty?: string;
 }
 
 export interface Patient {
@@ -17,6 +18,35 @@ export interface Patient {
   sex: 'F' | 'M' | 'OUTRO';
   phone?: string;
   email?: string;
+}
+
+export interface CreatePatientDto {
+  fullName: string;
+  birthDate: string;
+  sex: 'F' | 'M' | 'OUTRO';
+  phone?: string;
+  email?: string;
+}
+
+export type UpdatePatientDto = Partial<CreatePatientDto>;
+
+export interface Appointment {
+  id: string;
+  patientId: string;
+  patientName?: string;
+  date: string;
+  time: string;
+  type: 'PRIMEIRA_CONSULTA' | 'RETORNO' | 'TELECONSULTA' | 'EXAME';
+  status: 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+  notes?: string;
+}
+
+export interface CreateAppointmentDto {
+  patientId: string;
+  date: string;
+  time: string;
+  type: Appointment['type'];
+  notes?: string;
 }
 
 export interface Consultation {

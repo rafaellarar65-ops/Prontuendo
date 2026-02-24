@@ -4,6 +4,8 @@ export const queryKeys = {
   patientDetail: (patientId: string) => ['patients', patientId] as const,
   consultations: ['consultations'] as const,
   consultationTemplates: ['consultation-templates'] as const,
+  appointments: ['appointments'] as const,
+  appointmentsByDate: (date: string) => ['appointments', date] as const,
   bioimpedancePreview: ['bioimpedance', 'preview'] as const,
   bioimpedanceEvolution: ['bioimpedance', 'evolution'] as const,
   templateBuilderElements: ['template-builder', 'elements'] as const,
