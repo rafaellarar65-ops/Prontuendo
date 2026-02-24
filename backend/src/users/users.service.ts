@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
+import { toPrismaJson } from '../common/utils/prisma-json.util';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -87,7 +88,7 @@ export class UsersService {
     metadata: Record<string, unknown>,
   ) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource, metadata },
+      data: { tenantId, actorId, action, resource, metadata: toPrismaJson(metadata) },
     });
   }
 }
