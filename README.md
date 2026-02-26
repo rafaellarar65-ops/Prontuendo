@@ -44,3 +44,14 @@ VITE_API_BASE_URL=https://api.seu-dominio.com/api/v1
 - The provided container image starts `nginx` in the foreground.
 - If you see log lines like `signal 3 (SIGQUIT) received, shutting down` followed by many `gracefully shutting down` worker messages, that means the container received a stop signal and exited cleanly.
 - To keep it running for local checks, start it in detached mode (`docker compose up -d`) and inspect logs with `docker compose logs -f`.
+
+## Configuração do Neon Data API (`NEON_DATA_API_URL`)
+
+Para integrar com o endpoint REST da Neon, configure a variável de ambiente `NEON_DATA_API_URL` no backend:
+
+```bash
+NEON_DATA_API_URL=https://ep-square-scene-ac6vuxxe.apirest.sa-east-1.aws.neon.tech/neondb/rest/v1
+```
+
+> Dica: mantenha tokens/chaves de autenticação em variáveis separadas e nunca versione segredos reais.
+
