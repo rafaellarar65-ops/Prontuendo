@@ -42,6 +42,13 @@ export class PatientsService {
     });
   }
 
+
+  findOne(tenantId: string, id: string) {
+    return this.prisma.patient.findUnique({
+      where: { id_tenantId: { id, tenantId } },
+    });
+  }
+
   update(tenantId: string, actorId: string, id: string, dto: UpdatePatientDto) {
     const payload: Prisma.PatientUpdateInput = {
       ...dto,

@@ -15,7 +15,7 @@ export const patientApi = {
     return data;
   },
   async update(id: string, dto: UpdatePatientDto): Promise<Patient> {
-    const { data } = await http.put<Patient>(`/patients/${id}`, dto);
+    const { data } = await http.patch<Patient>(`/patients/${id}`, dto);
     return data;
   },
   async remove(id: string): Promise<void> {

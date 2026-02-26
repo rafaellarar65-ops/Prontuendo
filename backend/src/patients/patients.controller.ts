@@ -29,6 +29,15 @@ export class PatientsController {
     return this.patientsService.findAll(user.tenantId, query);
   }
 
+
+  @Get(':id')
+  @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
+  @UseGuards(PatientGuard)
+  @ApiOperation({ summary: 'Detalhar paciente' })
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.patientsService.findOne(user.tenantId, id);
+  }
+
   @Patch(':id')
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
   @UseGuards(PatientGuard)
