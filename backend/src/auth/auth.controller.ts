@@ -31,12 +31,19 @@ export class AuthController {
     return this.service.login(tenantId, dto);
   }
 
+  @Public()
+  @Post('patient-login')
+  @ApiOperation({ summary: 'Login do paciente com email/senha' })
+  loginPatient(@Headers('x-tenant-id') tenantId: string, @Body() dto: LoginDto) {
+    return this.service.loginPatient(tenantId, dto);
+  }
 
   @Put('password')
   @ApiOperation({ summary: 'Atualizar senha do usuário autenticado' })
   changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
     return this.service.changePassword(user.tenantId, user.sub, dto);
   }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Renovar access token com refresh token' })
   refresh(@CurrentUser() user: AuthUser, @Body() dto: RefreshTokenDto) {
