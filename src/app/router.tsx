@@ -11,15 +11,15 @@ import { QuestionnairePage } from '@/pages/patient/questionnaire-page';
 
 export const router = createBrowserRouter([
   {
-    path: '/login',
+    path: '/paciente/login',
     element: <LoginPage />,
   },
   {
-    path: '/',
+    path: '/paciente',
     element: <PatientAuthGuard />,
     children: [
       {
-        path: '/',
+        path: '',
         element: <AppShell />,
         children: [
           { index: true, element: <HomePage /> },

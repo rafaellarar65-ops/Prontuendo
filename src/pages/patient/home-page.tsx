@@ -23,25 +23,25 @@ export const HomePage = () => (
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Link
-        to="/questionario"
+        to="/paciente/questionario"
         className="flex min-h-11 items-center justify-center rounded-xl border-2 border-slate-400 bg-white p-3 text-center text-base font-semibold text-slate-900"
       >
         Questionário pré-consulta
       </Link>
       <Link
-        to="/glicemia"
+        to="/paciente/glicemia"
         className="flex min-h-11 items-center justify-center rounded-xl border-2 border-slate-400 bg-white p-3 text-center text-base font-semibold text-slate-900"
       >
         Registrar glicemia agora
       </Link>
       <Link
-        to="/exames"
+        to="/paciente/exames"
         className="flex min-h-11 items-center justify-center rounded-xl border-2 border-slate-400 bg-white p-3 text-center text-base font-semibold text-slate-900"
       >
         Enviar novo exame
       </Link>
       <Link
-        to="/documentos"
+        to="/paciente/documentos"
         className="flex min-h-11 items-center justify-center rounded-xl border-2 border-slate-400 bg-white p-3 text-center text-base font-semibold text-slate-900"
       >
         Ver meus documentos

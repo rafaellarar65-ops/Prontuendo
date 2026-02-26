@@ -8,15 +8,16 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Início', icon: Home },
-  { to: '/glicemia', label: 'Glicemia', icon: Activity },
-  { to: '/exames', label: 'Exames', icon: FlaskConical },
-  { to: '/documentos', label: 'Documentos', icon: FileText },
-  { to: '/perfil', label: 'Perfil', icon: UserRound },
+  { to: '/paciente', label: 'Início', icon: Home },
+  { to: '/paciente/glicemia', label: 'Glicemia', icon: Activity },
+  { to: '/paciente/exames', label: 'Exames', icon: FlaskConical },
+  { to: '/paciente/documentos', label: 'Documentos', icon: FileText },
+  { to: '/paciente/perfil', label: 'Perfil', icon: UserRound },
 ];
 
 export const AppShell = () => {
   const location = useLocation();
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-slate-50">
       <header className="sticky top-0 z-10 border-b-2 border-slate-200 bg-white px-4 py-3">

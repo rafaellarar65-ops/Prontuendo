@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { toPrismaJson } from '../common/utils/prisma-json.util';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
@@ -55,6 +56,46 @@ export class UsersService {
     });
   }
 
+
+  async updateProfile(tenantId: string, userId: string, dto: UpdateProfileDto) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id_tenantId: { id: userId, tenantId } },
+      select: { email: true },
+    });
+
+    if (dto.email && dto.email.toLowerCase() !== currentUser?.email) {
+      const emailInUse = await this.prisma.user.findFirst({
+        where: { tenantId, email: dto.email.toLowerCase(), id: { not: userId } },
+        select: { id: true },
+      });
+
+      if (emailInUse) {
+        throw new ConflictException('Este e-mail já está em uso.');
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id_tenantId: { id: userId, tenantId } },
+      data: {
+        fullName: dto.fullName,
+        email: dto.email?.toLowerCase(),
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.logMutation(tenantId, userId, 'UPDATE', 'profile', {
+      fields: Object.keys(dto),
+    });
+
+    return updated;
+  }
   async update(tenantId: string, actorId: string, id: string, dto: UpdateUserDto) {
     const updated = await this.prisma.user.update({
       where: { id_tenantId: { id, tenantId } },

@@ -37,7 +37,7 @@ export const ProfilePage = () => {
         Trocar senha
       </button>
       <Link
-        to="/login"
+        to="/paciente/login"
         className="flex h-12 w-full items-center justify-center rounded-xl bg-red-700 text-base font-bold text-white"
       >
         Sair
