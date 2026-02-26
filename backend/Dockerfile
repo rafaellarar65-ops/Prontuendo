@@ -2,6 +2,7 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY package*.json ./
 RUN npm install
 
@@ -13,6 +14,7 @@ RUN npx prisma generate && npm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
