@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
+import { PatientAuthGuard } from '@/components/layout/patient-auth-guard';
 import { AppShell } from '@/components/layout/app-shell';
 import { DocumentsPage } from '@/pages/patient/documents-page';
 import { ExamsUploadPage } from '@/pages/patient/exams-upload-page';
@@ -10,16 +11,25 @@ import { QuestionnairePage } from '@/pages/patient/questionnaire-page';
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
     path: '/',
-    element: <AppShell />,
+    element: <PatientAuthGuard />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'login', element: <LoginPage /> },
-      { path: 'glicemia', element: <GlucosePage /> },
-      { path: 'exames', element: <ExamsUploadPage /> },
-      { path: 'documentos', element: <DocumentsPage /> },
-      { path: 'questionario', element: <QuestionnairePage /> },
-      { path: 'perfil', element: <ProfilePage /> },
+      {
+        path: '/',
+        element: <AppShell />,
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: 'glicemia', element: <GlucosePage /> },
+          { path: 'exames', element: <ExamsUploadPage /> },
+          { path: 'documentos', element: <DocumentsPage /> },
+          { path: 'questionario', element: <QuestionnairePage /> },
+          { path: 'perfil', element: <ProfilePage /> },
+        ],
+      },
     ],
   },
 ]);

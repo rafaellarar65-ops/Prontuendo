@@ -17,11 +17,6 @@ const navItems: NavItem[] = [
 
 export const AppShell = () => {
   const location = useLocation();
-
-  if (location.pathname === '/login') {
-    return <Outlet />;
-  }
-
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-slate-50">
       <header className="sticky top-0 z-10 border-b-2 border-slate-200 bg-white px-4 py-3">

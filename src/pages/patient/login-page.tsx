@@ -1,16 +1,51 @@
-import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { isAxiosError } from 'axios';
+import { FormEvent, useMemo, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { usePatientLoginMutation } from '@/features/auth/use-patient-login-mutation';
+import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
+
+const DEFAULT_ERROR_MESSAGE = 'Não foi possível entrar no portal. Tente novamente.';
+
+const parseLoginError = (error: unknown): string => {
+  if (!isAxiosError<{ message?: string | string[] }>(error)) {
+    return DEFAULT_ERROR_MESSAGE;
+  }
+
+  const responseMessage = error.response?.data?.message;
+  if (Array.isArray(responseMessage)) {
+    return responseMessage[0] ?? DEFAULT_ERROR_MESSAGE;
+  }
+
+  return responseMessage ?? DEFAULT_ERROR_MESSAGE;
+};
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const isAuthenticated = usePatientAuthStore((state) => state.isAuthenticated);
+  const { mutate, isPending, error } = usePatientLoginMutation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
+  const errorMessage = useMemo(() => (error ? parseLoginError(error) : ''), [error]);
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setMessage('Entrando...');
-    window.setTimeout(() => navigate('/'), 400);
+    setMessage('');
+
+    mutate(
+      { email, password },
+      {
+        onSuccess: () => {
+          void navigate('/');
+        },
+      },
+    );
   };
 
   return (
@@ -49,8 +84,12 @@ export const LoginPage = () => {
           className="h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-base"
         />
 
-        <button type="submit" className="h-12 w-full rounded-xl bg-blue-800 text-base font-bold text-white">
-          Entrar no portal
+        <button
+          type="submit"
+          disabled={isPending}
+          className="h-12 w-full rounded-xl bg-blue-800 text-base font-bold text-white disabled:opacity-60"
+        >
+          {isPending ? 'Entrando...' : 'Entrar no portal'}
         </button>
 
         <button
@@ -62,7 +101,13 @@ export const LoginPage = () => {
         </button>
       </form>
 
-      {message && <p className="mt-3 rounded-xl border-2 border-slate-300 bg-white p-3 text-base text-slate-800">{message}</p>}
+      {!!errorMessage && (
+        <p className="mt-3 rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-base text-rose-700">{errorMessage}</p>
+      )}
+
+      {!!message && (
+        <p className="mt-3 rounded-xl border-2 border-slate-300 bg-white p-3 text-base text-slate-800">{message}</p>
+      )}
     </main>
   );
 };

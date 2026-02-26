@@ -53,6 +53,23 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  async loginPatient(tenantId: string, dto: LoginDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { tenantId, email: dto.email.toLowerCase(), isActive: true, role: 'PATIENT' },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    return this.issueTokens(user);
+  }
+
   async refresh(tenantId: string, userId: string, dto: RefreshTokenDto) {
     const tokenHash = this.hashToken(dto.refreshToken);
 

@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiErrorPayload } from '@/types/api';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
@@ -8,7 +9,7 @@ const API_BASE_URL =
   'http://localhost:3000';
 
 const attachAuthHeader = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-  const token = useAuthStore.getState().tokens?.accessToken;
+  const token = useAuthStore.getState().tokens?.accessToken ?? usePatientAuthStore.getState().tokens?.accessToken;
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
@@ -27,6 +28,7 @@ http.interceptors.response.use(
   (error: AxiosError<ApiErrorPayload>) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().signOut();
+      usePatientAuthStore.getState().signOut();
     }
     return Promise.reject(error);
   },

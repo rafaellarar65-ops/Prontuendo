@@ -30,6 +30,13 @@ export class AuthController {
     return this.service.login(tenantId, dto);
   }
 
+  @Public()
+  @Post('patient-login')
+  @ApiOperation({ summary: 'Login do paciente com email/senha' })
+  loginPatient(@Headers('x-tenant-id') tenantId: string, @Body() dto: LoginDto) {
+    return this.service.loginPatient(tenantId, dto);
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Renovar access token com refresh token' })
   refresh(@CurrentUser() user: AuthUser, @Body() dto: RefreshTokenDto) {
