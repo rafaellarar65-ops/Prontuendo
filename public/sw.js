@@ -1,4 +1,4 @@
-const CACHE_NAME = 'portal-prontuendo-shell-v3';
+const CACHE_NAME = 'portal-prontuendo-shell-v4';
 const PATIENT_APP_SHELL = [
   '/',
   '/login',
@@ -28,58 +28,42 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
-
-  if (event.request.mode === 'navigate') {
-    const isMedicalRoute = url.pathname.startsWith('/app');
-    const navigationFallback = isMedicalRoute ? '/app/' : '/login';
-
   const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
   const acceptHeader = event.request.headers.get('accept') || '';
   const isHtmlNavigation = event.request.mode === 'navigate' || acceptHeader.includes('text/html');
 
   if (isHtmlNavigation) {
+    const isMedicalRoute = requestUrl.pathname.startsWith('/app');
+    const navigationFallback = isMedicalRoute ? '/app/' : '/login';
+
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (requestUrl.origin === self.location.origin) {
-            const responseClone = response.clone();
-            void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-          }
+          const responseClone = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
           return response;
         })
         .catch(async () => {
           const cachedNavigation = await caches.match(event.request);
           if (cachedNavigation) return cachedNavigation;
           return caches.match(navigationFallback);
-          const cachedPage = await caches.match(event.request);
-          if (cachedPage) return cachedPage;
-
-          return (await caches.match('/login')) || caches.match('/index.html');
         }),
     );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) return cachedResponse;
+
       return fetch(event.request).then((response) => {
         const responseClone = response.clone();
         void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
         return response;
       });
     }),
-    fetch(event.request)
-      .then((response) => {
-        if (requestUrl.origin === self.location.origin) {
-          const responseClone = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request)),
   );
 });
 
