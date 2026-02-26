@@ -1,9 +1,10 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Put } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -30,6 +31,12 @@ export class AuthController {
     return this.service.login(tenantId, dto);
   }
 
+
+  @Put('password')
+  @ApiOperation({ summary: 'Atualizar senha do usuário autenticado' })
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.service.changePassword(user.tenantId, user.sub, dto);
+  }
   @Post('refresh')
   @ApiOperation({ summary: 'Renovar access token com refresh token' })
   refresh(@CurrentUser() user: AuthUser, @Body() dto: RefreshTokenDto) {

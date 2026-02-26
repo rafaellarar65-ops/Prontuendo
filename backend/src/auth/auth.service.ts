@@ -1,12 +1,13 @@
 import { randomUUID, createHash } from 'crypto';
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -53,6 +54,36 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+
+  async changePassword(tenantId: string, userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, tenantId, isActive: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuário não encontrado');
+    }
+
+    const passwordMatch = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Senha atual inválida');
+    }
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('A nova senha deve ser diferente da senha atual.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+
+    return { updated: true };
+  }
   async refresh(tenantId: string, userId: string, dto: RefreshTokenDto) {
     const tokenHash = this.hashToken(dto.refreshToken);
 

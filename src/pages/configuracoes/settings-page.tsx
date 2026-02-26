@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useState } from 'react';
 import {
   Bell,
@@ -11,6 +12,8 @@ import {
   User,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { authApi } from '@/lib/api/auth-api';
+import { usersApi } from '@/lib/api/users-api';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUiStore } from '@/lib/stores/ui-store';
 
@@ -88,9 +91,27 @@ const themes = [
   { value: 'system' as const, label: 'Sistema', icon: Globe },
 ];
 
+const extractApiErrorMessage = (error: unknown, fallback: string) => {
+  if (!axios.isAxiosError(error)) {
+    return fallback;
+  }
+
+  const message = error.response?.data?.message;
+  if (Array.isArray(message)) {
+    return message.join(' ');
+  }
+
+  if (typeof message === 'string' && message.trim()) {
+    return message;
+  }
+
+  return fallback;
+};
+
 // ── Page ────────────────────────────────────────────────────────────
 export const SettingsPage = () => {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const { theme, setTheme } = useUiStore();
 
   const [profile, setProfile] = useState({
@@ -100,6 +121,7 @@ export const SettingsPage = () => {
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savedProfile, setSavedProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
 
   const [notifications, setNotifications] = useState({
     emailConsulta: true,
@@ -111,33 +133,68 @@ export const SettingsPage = () => {
   const [password, setPassword] = useState({ current: '', next: '', confirm: '' });
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileError('');
     setSavingProfile(true);
-    // TODO: call PUT /users/profile when backend endpoint is ready
-    await new Promise((r) => setTimeout(r, 800));
-    setSavingProfile(false);
-    setSavedProfile(true);
-    setTimeout(() => setSavedProfile(false), 2500);
+
+    try {
+      const updatedProfile = await usersApi.updateProfile({
+        fullName: profile.name,
+        email: profile.email,
+      });
+
+      updateUser({
+        ...updatedProfile,
+        ...(user?.specialty ? { specialty: user.specialty } : {}),
+      });
+
+      setProfile((current) => ({
+        ...current,
+        name: updatedProfile.name,
+        email: updatedProfile.email,
+      }));
+      setSavedProfile(true);
+      setTimeout(() => setSavedProfile(false), 2500);
+    } catch (error) {
+      setProfileError(extractApiErrorMessage(error, 'Não foi possível salvar o perfil.'));
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
+    setPasswordSuccess(false);
+
     if (password.next !== password.confirm) {
       setPasswordError('As senhas não coincidem.');
       return;
     }
+
     if (password.next.length < 8) {
       setPasswordError('A nova senha deve ter pelo menos 8 caracteres.');
       return;
     }
+
     setSavingPassword(true);
-    // TODO: call PUT /auth/password when backend endpoint is ready
-    await new Promise((r) => setTimeout(r, 800));
-    setSavingPassword(false);
-    setPassword({ current: '', next: '', confirm: '' });
+
+    try {
+      await authApi.changePassword({
+        currentPassword: password.current,
+        newPassword: password.next,
+      });
+      setPassword({ current: '', next: '', confirm: '' });
+      setPasswordSuccess(true);
+      setTimeout(() => setPasswordSuccess(false), 2500);
+    } catch (error) {
+      setPasswordError(extractApiErrorMessage(error, 'Não foi possível alterar a senha.'));
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -184,6 +241,11 @@ export const SettingsPage = () => {
               className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
+          {profileError && (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
+              {profileError}
+            </p>
+          )}
           <div className="flex justify-end">
             <button
               type="submit"
@@ -311,6 +373,11 @@ export const SettingsPage = () => {
           {passwordError && (
             <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
               {passwordError}
+            </p>
+          )}
+          {passwordSuccess && (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              Senha alterada com sucesso.
             </p>
           )}
           <div className="flex justify-end">
