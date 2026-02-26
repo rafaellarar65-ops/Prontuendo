@@ -2,10 +2,25 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiErrorPayload } from '@/types/api';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_URL ??
-  'http://localhost:3000';
+const DEFAULT_API_BASE_URL = 'http://localhost:3001/api/v1';
+
+const normalizeBaseUrl = (url: string): string => url.replace(/\/+$/, '');
+
+const resolveApiBaseUrl = (): string => {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return normalizeBaseUrl(configuredBaseUrl);
+  }
+
+  if (import.meta.env.DEV) {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  throw new Error('Missing required env var: VITE_API_BASE_URL');
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const attachAuthHeader = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
   const token = useAuthStore.getState().tokens?.accessToken;
