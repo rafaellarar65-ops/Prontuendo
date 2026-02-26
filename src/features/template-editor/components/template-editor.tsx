@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-declare global {
-  interface Window {
-    fabric?: any;
-  }
-}
+import { fabric } from 'fabric';
 
 type ToolType =
   | 'text'
@@ -21,7 +16,6 @@ type PageFormat = 'a4-portrait' | 'a4-landscape';
 
 const MM_TO_PX = 3.7795275591;
 const GRID_SIZE = 24;
-const FABRIC_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js';
 
 const variables = ['{{paciente.nome}}', '{{bio.peso}}', '{{bio.imc}}', '{{glicemia.media}}', '{{medico.crm}}', '{{data.hoje}}'];
 
@@ -40,6 +34,7 @@ export const TemplateEditor = () => {
   const [pageFormat, setPageFormat] = useState<PageFormat>('a4-portrait');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [initError, setInitError] = useState<string | null>(null);
 
   const dimensions = useMemo(() => pageDimensions(pageFormat), [pageFormat]);
 
@@ -52,22 +47,10 @@ export const TemplateEditor = () => {
   }, [historyIndex]);
 
   useEffect(() => {
-    const loadFabric = async () => {
-      if (window.fabric) return;
-      await new Promise<void>((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = FABRIC_CDN;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Não foi possível carregar o Fabric.js.'));
-        document.body.appendChild(script);
-      });
-    };
+    const setup = () => {
+      if (!canvasRef.current) return;
 
-    const setup = async () => {
-      await loadFabric();
-      if (!canvasRef.current || !window.fabric) return;
-
-      const canvas = new window.fabric.Canvas(canvasRef.current, {
+      const canvas = new fabric.Canvas(canvasRef.current, {
         width: dimensions.width,
         height: dimensions.height,
         backgroundColor: '#fff',
@@ -93,8 +76,18 @@ export const TemplateEditor = () => {
       pushHistory();
     };
 
-    void setup();
-    return () => fabricCanvasRef.current?.dispose();
+    try {
+      setup();
+      setInitError(null);
+    } catch {
+      setInitError('Não foi possível inicializar o editor de template no momento.');
+      fabricCanvasRef.current = null;
+    }
+
+    return () => {
+      fabricCanvasRef.current?.dispose();
+      fabricCanvasRef.current = null;
+    };
   }, [dimensions.height, dimensions.width, pushHistory, snapToGrid]);
 
   useEffect(() => {
@@ -123,8 +116,7 @@ export const TemplateEditor = () => {
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
-    const fabric = window.fabric;
-    if (!canvas || !fabric) return;
+    if (!canvas) return;
     canvas.getObjects().forEach((obj: any) => obj.data?.isGridLine && canvas.remove(obj));
     if (!showGrid) return canvas.renderAll();
 
@@ -154,8 +146,7 @@ export const TemplateEditor = () => {
 
   const addElement = useCallback((tool: ToolType) => {
     const canvas = fabricCanvasRef.current;
-    const fabric = window.fabric;
-    if (!canvas || !fabric) return;
+    if (!canvas) return;
 
     if (tool === 'text') canvas.add(new fabric.IText('Digite seu texto', { left: 120, top: 120, fontSize: 22 }));
     if (tool === 'variable') canvas.add(new fabric.Textbox('{{paciente.nome}}', { left: 110, top: 120, width: 260, fontSize: 18 }));
@@ -211,6 +202,7 @@ export const TemplateEditor = () => {
       </aside>
 
       <section className="rounded-lg border bg-slate-50 p-3">
+        {initError ? <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{initError}</p> : null}
         <div className="mb-2 flex items-center gap-2 text-sm">
           <button className="rounded border bg-white px-2 py-1" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} type="button">-</button>
           Zoom {Math.round(zoom * 100)}%
