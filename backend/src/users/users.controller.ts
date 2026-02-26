@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -28,6 +29,12 @@ export class UsersController {
     return this.usersService.findAll(user.tenantId, pagination);
   }
 
+
+  @Put('profile')
+  @ApiOperation({ summary: 'Atualizar perfil do usuário autenticado' })
+  updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
+    return this.usersService.updateProfile(user.tenantId, user.sub, dto);
+  }
   @Patch(':id')
   @Roles('MEDICO')
   @ApiOperation({ summary: 'Atualizar usuário' })

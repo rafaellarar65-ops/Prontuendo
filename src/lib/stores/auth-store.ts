@@ -7,6 +7,7 @@ interface AuthState {
   user: UserProfile | null;
   isAuthenticated: boolean;
   signIn: (tokens: AuthTokens, user: UserProfile) => void;
+  updateUser: (user: UserProfile) => void;
   signOut: () => void;
 }
 
@@ -17,6 +18,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       signIn: (tokens, user) => set({ tokens, user, isAuthenticated: true }),
+      updateUser: (user) => set((state) => ({ ...state, user })),
       signOut: () => set({ tokens: null, user: null, isAuthenticated: false }),
     }),
     { name: 'prontuendo-auth' },
