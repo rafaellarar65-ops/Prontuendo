@@ -10,7 +10,7 @@ import { QuestionnairePage } from '@/pages/patient/questionnaire-page';
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: '/paciente',
     element: <AppShell />,
     children: [
       { index: true, element: <HomePage /> },

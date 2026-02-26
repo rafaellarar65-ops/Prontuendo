@@ -10,7 +10,7 @@ export const LoginPage = () => {
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage('Entrando...');
-    window.setTimeout(() => navigate('/'), 400);
+    window.setTimeout(() => navigate('/paciente'), 400);
   };
 
   return (
