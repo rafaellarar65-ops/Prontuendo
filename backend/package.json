@@ -2,6 +2,9 @@
   "name": "prontuendo-api",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "start:dev": "nest start --watch",
     "build": "nest build",
