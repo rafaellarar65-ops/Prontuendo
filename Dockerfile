@@ -14,7 +14,14 @@ RUN if command -v npm >/dev/null 2>&1; then \
 
 FROM deps AS build
 COPY . .
-RUN node --run build
+RUN if command -v npm >/dev/null 2>&1; then \
+      npm run build; \
+    elif [ -f /usr/local/lib/node_modules/npm/bin/npm-cli.js ]; then \
+      node /usr/local/lib/node_modules/npm/bin/npm-cli.js run build; \
+    else \
+      echo "npm executable not found in Node image" >&2; \
+      exit 1; \
+    fi
 
 FROM nginx:1.27-alpine AS runtime
 ENV PORT=8080
