@@ -1,5 +1,5 @@
 export type BootstrapErrorContext = {
-  source: 'window.error' | 'window.unhandledrejection' | 'bootstrap.render';
+  source: 'window.error' | 'window.unhandledrejection' | 'bootstrap.render' | 'bootstrap.service-worker';
   message: string;
   stack: string | undefined;
   details: Record<string, unknown> | undefined;
