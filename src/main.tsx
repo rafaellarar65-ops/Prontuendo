@@ -33,6 +33,13 @@ try {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => {
+      reportBootstrapCriticalError({
+        source: 'bootstrap.service-worker',
+        message: error instanceof Error ? error.message : 'Falha ao registrar service worker',
+        stack: error instanceof Error ? error.stack : undefined,
+        details: undefined,
+      });
+    });
   });
 }

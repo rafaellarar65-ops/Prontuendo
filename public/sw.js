@@ -1,4 +1,4 @@
-const CACHE_NAME = 'portal-prontuendo-shell-v4';
+const CACHE_NAME = 'portal-prontuendo-shell-v5';
 const PATIENT_APP_SHELL = [
   '/',
   '/login',
@@ -11,8 +11,24 @@ const PATIENT_APP_SHELL = [
 const MEDICAL_APP_SHELL = ['/app/', '/app/login'];
 const APP_SHELL = [...PATIENT_APP_SHELL, ...MEDICAL_APP_SHELL];
 
+async function warmAppShellCache() {
+  const cache = await caches.open(CACHE_NAME);
+
+  await Promise.all(
+    APP_SHELL.map(async (path) => {
+      try {
+        const response = await fetch(path, { cache: 'no-store' });
+        if (!response.ok) return;
+        await cache.put(path, response.clone());
+      } catch {
+        // ignore install-time network failures for individual routes
+      }
+    }),
+  );
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(warmAppShellCache());
   self.skipWaiting();
 });
 
@@ -68,14 +84,22 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  const payload = event.data?.json() ?? {
+  let payload;
+
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch {
+    payload = null;
+  }
+
+  const notificationPayload = payload || {
     title: 'Portal de pacientes - Dr Rafael Lara',
     body: 'Você tem uma nova atualização no portal.',
   };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
+    self.registration.showNotification(notificationPayload.title, {
+      body: notificationPayload.body,
       icon: '/icons/icon-192.svg',
       badge: '/icons/icon-192.svg',
     }),
