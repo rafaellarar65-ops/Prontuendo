@@ -7,6 +7,9 @@ RUN if command -v npm >/dev/null 2>&1; then \
       npm install; \
     elif [ -f /usr/local/lib/node_modules/npm/bin/npm-cli.js ]; then \
       node /usr/local/lib/node_modules/npm/bin/npm-cli.js install; \
+      npm ci; \
+    elif [ -f /usr/local/lib/node_modules/npm/bin/npm-cli.js ]; then \
+      node /usr/local/lib/node_modules/npm/bin/npm-cli.js ci; \
     else \
       echo "npm executable not found in Node image" >&2; \
       exit 1; \
