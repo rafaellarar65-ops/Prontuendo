@@ -3,11 +3,18 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN if command -v npm >/dev/null 2>&1; then \
+      npm install; \
+    elif [ -f /usr/local/lib/node_modules/npm/bin/npm-cli.js ]; then \
+      node /usr/local/lib/node_modules/npm/bin/npm-cli.js install; \
+    else \
+      echo "npm executable not found in Node image" >&2; \
+      exit 1; \
+    fi
 
 FROM deps AS build
 COPY . .
-RUN npm run build
+RUN node --run build
 
 FROM nginx:1.27-alpine AS runtime
 ENV PORT=8080
