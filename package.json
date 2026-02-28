@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "npm run typecheck",
+    "lint": "node --run typecheck",
     "typecheck": "tsc --noEmit",
     "test:coverage": "vitest run --coverage"
   },
