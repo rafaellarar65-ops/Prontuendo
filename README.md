@@ -42,6 +42,9 @@ VITE_API_BASE_URL=https://api.seu-dominio.com/api/v1
 ## Docker notes
 
 - The provided container image starts `nginx` in the foreground.
+- This image is a **static nginx runtime**. Do **not** configure Railway (or any platform) to start it with `npm start`, `npm run start`, or any other Node/npm command.
+- In Railway service settings, leave the Start Command empty so the Dockerfile default command is used: `CMD ["nginx", "-g", "daemon off;"]`.
+- If your platform requires an explicit start command, set it to: `nginx -g 'daemon off;'`.
 - If you see log lines like `signal 3 (SIGQUIT) received, shutting down` followed by many `gracefully shutting down` worker messages, that means the container received a stop signal and exited cleanly.
 - To keep it running for local checks, start it in detached mode (`docker compose up -d`) and inspect logs with `docker compose logs -f`.
 
@@ -54,4 +57,3 @@ NEON_DATA_API_URL=https://ep-square-scene-ac6vuxxe.apirest.sa-east-1.aws.neon.te
 ```
 
 > Dica: mantenha tokens/chaves de autenticação em variáveis separadas e nunca versione segredos reais.
-
