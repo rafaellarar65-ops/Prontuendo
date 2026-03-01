@@ -34,7 +34,7 @@ Exemplos:
 VITE_API_BASE_URL=http://localhost:3001/api/v1
 
 # .env.production
-VITE_API_BASE_URL=https://api.seu-dominio.com/api/v1
+VITE_API_BASE_URL=https://prontuendo-production-9bc7.up.railway.app/api/v1
 ```
 
 > Observação: não use `VITE_API_URL`. Essa variável legada foi descontinuada para evitar inconsistências entre ambientes.
