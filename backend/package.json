@@ -8,7 +8,10 @@
   "scripts": {
     "start:dev": "nest start --watch",
     "build": "nest build",
+    "start:prod": "node dist/main",
     "start": "node dist/main",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed",
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
