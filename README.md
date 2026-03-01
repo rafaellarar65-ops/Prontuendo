@@ -55,6 +55,7 @@ VITE_TENANT_ID=clitenant0000000000000001
 - The provided container image starts `nginx` in the foreground.
 - This image is a **static nginx runtime**. Do **not** configure Railway (or any platform) to start it with `npm start`, `npm run start`, or any other Node/npm command.
 - In Railway service settings, leave the Start Command empty so the Dockerfile default command is used: `CMD ["nginx", "-g", "daemon off;"]`.
+- This repository includes `railway.toml` with the same explicit start command (`nginx -g 'daemon off;'`) so Docker deployments don't fall back to `npm` in the nginx runtime image.
 - If your platform requires an explicit start command, set it to: `nginx -g 'daemon off;'`.
 - If you see log lines like `signal 3 (SIGQUIT) received, shutting down` followed by many `gracefully shutting down` worker messages, that means the container received a stop signal and exited cleanly.
 - To keep it running for local checks, start it in detached mode (`docker compose up -d`) and inspect logs with `docker compose logs -f`.
