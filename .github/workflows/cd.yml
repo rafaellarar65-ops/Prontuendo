@@ -24,11 +24,17 @@ jobs:
           npm install
           npm install --prefix backend
 
-      - name: Run database migrations (Supabase/Postgres)
-        run: npx prisma migrate deploy
+      - name: Run database sync (migrate deploy or db push)
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+        run: |
+          if [ -d prisma/migrations ] && [ "$(find prisma/migrations -mindepth 1 -maxdepth 1 | wc -l)" -gt 0 ]; then
+            npx prisma migrate deploy
+          else
+            npx prisma db push --accept-data-loss
+          fi
 
       - name: Deploy Doctor frontend to Vercel
         run: npx vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_SCOPE }}
