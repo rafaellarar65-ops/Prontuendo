@@ -39,6 +39,17 @@ VITE_API_BASE_URL=https://api.seu-dominio.com/api/v1
 
 > Observação: não use `VITE_API_URL`. Essa variável legada foi descontinuada para evitar inconsistências entre ambientes.
 
+## Configuração de tenant no frontend médico (`VITE_TENANT_ID`)
+
+Defina o tenant usado pelo frontend médico para enviar o header `x-tenant-id` em todas as chamadas da API:
+
+```bash
+# .env (frontend médico)
+VITE_TENANT_ID=clitenant0000000000000001
+```
+
+> Use o tenant real do banco em produção. Sem esse valor, o backend pode autenticar no tenant errado ou rejeitar o login.
+
 ## Docker notes
 
 - The provided container image starts `nginx` in the foreground.
