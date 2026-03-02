@@ -30,7 +30,10 @@ export class PatientPortalService {
       where: {
         tenantId,
         resource: 'documents',
-        metadata: { path: ['patientId'], equals: patientId },
+        metadata: {
+          path: ['patientId'],
+          equals: patientId,
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -39,7 +42,7 @@ export class PatientPortalService {
   async uploadExam(tenantId: string, patientId: string, authPatientId: string | undefined, actorId: string, payload: Record<string, unknown>) {
     this.ensurePatientScope(patientId, authPatientId);
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: serializeJson({ patientId, ...payload }) },
+      data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: { patientId, ...payload } },
     });
     return { status: 'received', patientId };
   }
