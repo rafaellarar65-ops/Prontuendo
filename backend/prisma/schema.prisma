@@ -94,7 +94,7 @@ model Consultation {
   tenantId    String
   patientId   String
   clinicianId String
-  status      ConsultationStatus @default(DRAFT)
+  status      String             @default("DRAFT") // "DRAFT" or "FINALIZED"
   latestDraft String?            // JSON string for SQLite
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
