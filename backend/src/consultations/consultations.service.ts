@@ -115,7 +115,7 @@ export class ConsultationsService {
     });
 
     const version = (lastVersion?.version ?? 0) + 1;
-    const content = deserializeJson<Record<string, unknown>>(consultation.latestDraft) || {};
+    const content = (consultation.latestDraft ?? {}) as Prisma.InputJsonObject;
     const hash = createHash('sha256').update(JSON.stringify(content)).digest('hex');
 
     return this.prisma.$transaction(async (trx) => {
@@ -132,7 +132,7 @@ export class ConsultationsService {
           consultationId: id,
           version,
           isFinal: true,
-          content: serializeJson(content),
+          content,
           hash,
         },
       });
@@ -143,7 +143,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'FINALIZE',
           resource: 'consultation',
-          metadata: serializeJson({ consultationId: id, version, hash }),
+          metadata: { consultationId: id, version, hash },
         },
       });
 
