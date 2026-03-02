@@ -25,18 +25,24 @@ export class PatientPortalService {
     return this.prisma.glucoseLog.findMany({ where: { tenantId, patientId }, orderBy: { measuredAt: 'desc' }, take: 50 });
   }
 
-  myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
+  async myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
     this.ensurePatientScope(patientId, authPatientId);
-    return this.prisma.activityLog.findMany({
-      where: { tenantId, resource: 'documents', metadata: { path: ['patientId'], equals: patientId } },
+    const logs = await this.prisma.activityLog.findMany({
+      where: { tenantId, resource: 'documents' },
       orderBy: { createdAt: 'desc' },
+    });
+    
+    // Filter manually since SQLite doesn't support JSON path queries
+    return logs.filter(log => {
+      const metadata = deserializeJson<{ patientId?: string }>(log.metadata);
+      return metadata?.patientId === patientId;
     });
   }
 
   async uploadExam(tenantId: string, patientId: string, authPatientId: string | undefined, actorId: string, payload: Record<string, unknown>) {
     this.ensurePatientScope(patientId, authPatientId);
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: { patientId, ...payload } },
+      data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: serializeJson({ patientId, ...payload }) },
     });
     return { status: 'received', patientId };
   }
