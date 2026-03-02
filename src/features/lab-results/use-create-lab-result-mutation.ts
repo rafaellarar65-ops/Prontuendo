@@ -8,7 +8,10 @@ export const useCreateLabResultMutation = () => {
   return useMutation({
     mutationFn: (dto: CreateLabResultDto) => labResultsApi.create(dto),
     onSuccess: (created) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.labResults(created.patientId) });
       void qc.invalidateQueries({ queryKey: queryKeys.labResultsHistory(created.patientId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.glucose(created.patientId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.analysis(created.patientId) });
     },
   });
 };
