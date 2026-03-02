@@ -39,7 +39,7 @@ export class LabResultsService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'lab-results', metadata: (metadata) },
+      data: { tenantId, actorId, action, resource: 'lab-results', metadata: metadata },
     });
   }
 }
