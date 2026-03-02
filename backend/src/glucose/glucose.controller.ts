@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -16,20 +16,28 @@ export class GlucoseController {
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
   @ApiOperation({ summary: 'Criar registro glicêmico' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateGlucoseLogDto) {
-    return this.glucoseService.create(user.tenantId, user.sub, dto);
+    return this.glucoseService.create(user.tenantId, dto.patientId, dto, user.sub);
   }
 
-  @Get(':patientId/stats')
+  @Get()
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
-  @ApiOperation({ summary: 'Estatísticas de glicemia (TIR, média, desvio padrão)' })
-  stats(@CurrentUser() user: AuthUser, @Param('patientId') patientId: string) {
-    return this.glucoseService.stats(user.tenantId, patientId);
+  @ApiOperation({ summary: 'Listar registros glicêmicos por paciente' })
+  @ApiQuery({ name: 'patientId', required: true, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  findByPatient(
+    @CurrentUser() user: AuthUser,
+    @Query('patientId') patientId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : 50;
+    return this.glucoseService.findByPatient(user.tenantId, patientId, parsedLimit);
   }
 
-  @Post('read-image')
+  @Get('analyze')
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
-  @ApiOperation({ summary: 'OCR de glicosímetro via IA' })
-  readImage(@CurrentUser() user: AuthUser, @Body() payload: Record<string, unknown>) {
-    return this.glucoseService.readImage(user.tenantId, user.sub, payload);
+  @ApiOperation({ summary: 'Análise glicêmica com base nos últimos 30 registros' })
+  @ApiQuery({ name: 'patientId', required: true, type: String })
+  analyze(@CurrentUser() user: AuthUser, @Query('patientId') patientId: string) {
+    return this.glucoseService.analyzeGlucose(user.tenantId, patientId);
   }
 }

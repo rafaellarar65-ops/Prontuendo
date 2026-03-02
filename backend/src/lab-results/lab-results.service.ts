@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
 
@@ -8,11 +7,11 @@ import { CreateLabResultDto } from './dto/create-lab-result.dto';
 export class LabResultsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(tenantId: string, actorId: string, dto: CreateLabResultDto) {
+  async create(tenantId: string, patientId: string, dto: CreateLabResultDto) {
     const result = await this.prisma.labResult.create({
       data: {
         tenantId,
-        patientId: dto.patientId,
+        patientId,
         examName: dto.examName,
         value: dto.value,
         unit: dto.unit,
@@ -21,25 +20,28 @@ export class LabResultsService {
       },
     });
 
-    await this.audit(tenantId, actorId, 'CREATE', { labResultId: result.id });
     return result;
   }
 
-  history(tenantId: string, patientId: string, examName?: string) {
+  findByPatient(tenantId: string, patientId: string, limit = 50) {
     return this.prisma.labResult.findMany({
-      where: { tenantId, patientId, examName },
-      orderBy: { resultDate: 'asc' },
+      where: { tenantId, patientId },
+      orderBy: { resultDate: 'desc' },
+      take: limit,
+    });
+  }
+
+  findLatest(tenantId: string, patientId: string) {
+    return this.prisma.labResult.findFirst({
+      where: { tenantId, patientId },
+      orderBy: { resultDate: 'desc' },
     });
   }
 
   async extract(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    await this.audit(tenantId, actorId, 'EXTRACT_REQUEST', payload);
-    return { status: 'queued', source: 'ia', entity: 'lab-results' };
-  }
-
-  private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'lab-results', metadata: metadata as any },
+      data: { tenantId, actorId, action: 'EXTRACT_REQUEST', resource: 'lab-results', metadata: payload as any },
     });
+    return { status: 'queued', source: 'ia', entity: 'lab-results' };
   }
 }

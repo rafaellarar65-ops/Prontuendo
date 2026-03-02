@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGlucoseLogDto } from './dto/create-glucose-log.dto';
 
@@ -8,51 +7,82 @@ import { CreateGlucoseLogDto } from './dto/create-glucose-log.dto';
 export class GlucoseService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(tenantId: string, actorId: string, dto: CreateGlucoseLogDto) {
+  async create(tenantId: string, patientId: string, dto: CreateGlucoseLogDto, actorId?: string) {
     const log = await this.prisma.glucoseLog.create({
       data: {
         tenantId,
-        patientId: dto.patientId,
+        patientId,
         value: dto.value,
         measuredAt: new Date(dto.measuredAt),
         notes: dto.notes,
       },
     });
 
-    await this.audit(tenantId, actorId, 'CREATE', { logId: log.id });
+    if (actorId) {
+      await this.audit(tenantId, actorId, 'CREATE', { logId: log.id, patientId });
+    }
+
     return log;
   }
 
-  findByPatient(tenantId: string, patientId: string) {
+  findByPatient(tenantId: string, patientId: string, limit = 50) {
     return this.prisma.glucoseLog.findMany({
       where: { tenantId, patientId },
-      orderBy: { measuredAt: 'asc' },
+      orderBy: { measuredAt: 'desc' },
+      take: limit,
     });
   }
 
-  async stats(tenantId: string, patientId: string) {
-    const logs = await this.findByPatient(tenantId, patientId);
+  async findLatest(tenantId: string, patientId: string) {
+    const [latest] = await this.prisma.glucoseLog.findMany({
+      where: { tenantId, patientId },
+      orderBy: { measuredAt: 'desc' },
+      take: 1,
+    });
+
+    return latest ?? null;
+  }
+
+  async analyzeGlucose(tenantId: string, patientId: string) {
+    const logs = await this.prisma.glucoseLog.findMany({
+      where: { tenantId, patientId },
+      orderBy: { measuredAt: 'desc' },
+      take: 30,
+    });
+
     if (!logs.length) {
-      return { average: 0, stdDev: 0, timeInRange: 0, count: 0 };
+      return {
+        average: 0,
+        min: 0,
+        max: 0,
+        count: 0,
+        lastValue: null,
+        lastMeasuredAt: null,
+        trend: 'stable',
+      };
     }
 
-    const values = logs.map((l) => l.value);
-    const average = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.reduce((acc, v) => acc + (v - average) ** 2, 0) / values.length;
-    const stdDev = Math.sqrt(variance);
-    const inRange = values.filter((v) => v >= 70 && v <= 180).length;
+    const values = logs.map((entry) => entry.value);
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+
+    const lastValue = logs[0].value;
+    const lastMeasuredAt = logs[0].measuredAt;
+
+    const oldestValue = logs[logs.length - 1].value;
+    const delta = lastValue - oldestValue;
+    const trend = delta > 5 ? 'up' : delta < -5 ? 'down' : 'stable';
 
     return {
       average: Number(average.toFixed(2)),
-      stdDev: Number(stdDev.toFixed(2)),
-      timeInRange: Number(((inRange / values.length) * 100).toFixed(2)),
+      min,
+      max,
       count: values.length,
+      lastValue,
+      lastMeasuredAt,
+      trend,
     };
-  }
-
-  async readImage(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    await this.audit(tenantId, actorId, 'OCR_REQUEST', payload);
-    return { status: 'queued', source: 'gemini', type: 'glucometer-image' };
   }
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {

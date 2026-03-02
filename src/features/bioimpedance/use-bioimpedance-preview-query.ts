@@ -5,5 +5,5 @@ import { queryKeys } from '@/lib/query/query-keys';
 export const useBioimpedancePreviewQuery = () =>
   useQuery({
     queryKey: queryKeys.bioimpedancePreview,
-    queryFn: bioimpedanceApi.aiPreview,
+    queryFn: () => bioimpedanceApi.aiPreview(),
   });

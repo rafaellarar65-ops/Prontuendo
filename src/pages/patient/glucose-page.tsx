@@ -1,199 +1,217 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { addGlucoseEntry, GlucoseEntry, loadGlucoseEntries, markAllAsSynced } from '@/lib/offline/glucose-sync';
+import { FormEvent, useMemo, useState } from 'react';
+import { Loader2, Plus } from 'lucide-react';
+import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { http } from '@/lib/api/http';
 
-type Period = 7 | 14 | 30;
+interface GlucoseItem {
+  id: string;
+  value: number;
+  measuredAt: string;
+  notes?: string | null;
+}
 
-const calculateAverage = (entries: GlucoseEntry[]) => {
-  if (!entries.length) return 0;
-  return Math.round(entries.reduce((sum, entry) => sum + entry.value, 0) / entries.length);
-};
+interface GlucoseAnalysis {
+  timeInRange?: number;
+  average?: number;
+  estimatedA1c?: number;
+  insight?: string;
+}
 
-const getEstimatedA1c = (avgGlucose: number) => {
-  if (!avgGlucose) return '--';
-  const a1c = (avgGlucose + 46.7) / 28.7;
-  return a1c.toFixed(1);
+const glucoseKey = (patientId: string) => ['patient-portal', patientId, 'glucose'] as const;
+const glucoseAnalysisKey = (patientId: string) => ['patient-portal', patientId, 'glucose-analysis'] as const;
+
+const getSemaphore = (value: number) => {
+  if (value < 70) return { label: 'Baixa', className: 'bg-rose-100 text-rose-800 border-rose-300' };
+  if (value <= 180) return { label: 'Alvo', className: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  return { label: 'Alta', className: 'bg-amber-100 text-amber-800 border-amber-300' };
 };
 
 const toLocalDate = (input: string) => new Date(input).toLocaleString('pt-BR');
 
 export const GlucosePage = () => {
-  const [entries, setEntries] = useState<GlucoseEntry[]>([]);
+  const patient = usePatientAuthStore((state) => state.patient);
+  const patientId = patient?.patientId;
+  const queryClient = useQueryClient();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [value, setValue] = useState('');
-  const [note, setNote] = useState('');
-  const [message, setMessage] = useState('');
-  const [period, setPeriod] = useState<Period>(7);
-  const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>(undefined);
+  const [notes, setNotes] = useState('');
+  const [feedback, setFeedback] = useState('');
 
-  useEffect(() => {
-    setEntries(loadGlucoseEntries());
+  const glucoseQuery = useQuery({
+    queryKey: glucoseKey(patientId ?? 'unknown'),
+    enabled: Boolean(patientId),
+    queryFn: async () => {
+      const { data } = await http.get(`/patient-portal/${patientId}/glucose`);
+      if (Array.isArray(data)) return data as GlucoseItem[];
+      if (Array.isArray(data?.items)) return data.items as GlucoseItem[];
+      return [] as GlucoseItem[];
+    },
+  });
 
-    const onBackOnline = () => {
-      markAllAsSynced();
-      setEntries(loadGlucoseEntries());
-      setMessage('Internet voltou. Seus registros foram sincronizados.');
-    };
+  const analysisQuery = useQuery({
+    queryKey: glucoseAnalysisKey(patientId ?? 'unknown'),
+    enabled: Boolean(patientId),
+    queryFn: async () => {
+      const { data } = await http.get(`/patient-portal/${patientId}/glucose/analysis`);
+      return (data ?? {}) as GlucoseAnalysis;
+    },
+  });
 
-    window.addEventListener('online', onBackOnline);
-    return () => window.removeEventListener('online', onBackOnline);
-  }, []);
+  const createMutation = useMutation({
+    mutationFn: async (payload: { value: number; notes?: string; measuredAt?: string }) => {
+      if (!patientId) throw new Error('patientId ausente');
+      const { data } = await http.post(`/patient-portal/${patientId}/glucose`, {
+        ...payload,
+        measuredAt: payload.measuredAt ?? new Date().toISOString(),
+      });
+      return data;
+    },
+    onSuccess: async () => {
+      if (!patientId) return;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: glucoseKey(patientId) }),
+        queryClient.invalidateQueries({ queryKey: glucoseAnalysisKey(patientId) }),
+      ]);
+    },
+  });
 
-  const visibleEntries = useMemo(() => {
-    const cutoff = Date.now() - period * 24 * 60 * 60 * 1000;
-    return entries.filter((entry) => new Date(entry.measuredAt).getTime() >= cutoff);
-  }, [entries, period]);
+  const sortedEntries = useMemo(
+    () => [...(glucoseQuery.data ?? [])].sort((a, b) => +new Date(b.measuredAt) - +new Date(a.measuredAt)),
+    [glucoseQuery.data],
+  );
 
-  const timeInRange = useMemo(() => {
-    if (!visibleEntries.length) return 0;
-    const inRange = visibleEntries.filter((entry) => entry.value >= 70 && entry.value <= 180).length;
-    return Math.round((inRange / visibleEntries.length) * 100);
-  }, [visibleEntries]);
-
-  const average = useMemo(() => calculateAverage(visibleEntries), [visibleEntries]);
-
-  const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoDataUrl(typeof reader.result === 'string' ? reader.result : undefined);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsedValue = Number(value);
-    if (parsedValue <= 0) return;
+    const parsed = Number(value);
+    if (!parsed) return;
 
-    addGlucoseEntry({
-      id: crypto.randomUUID(),
-      value: parsedValue,
-      measuredAt: new Date().toISOString(),
-      note,
-      ...(photoDataUrl !== undefined ? { photoDataUrl } : {}),
-    });
-
-    setEntries(loadGlucoseEntries());
-    setValue('');
-    setNote('');
-    setPhotoDataUrl(undefined);
-    setMessage(
-      navigator.onLine
-        ? 'Registro salvo no portal.'
-        : 'Registro salvo no celular. Vamos sincronizar quando voltar internet.',
-    );
+    try {
+      await createMutation.mutateAsync({ value: parsed, notes });
+      setFeedback('Registro salvo com sucesso.');
+      setValue('');
+      setNotes('');
+      setIsModalOpen(false);
+    } catch {
+      setFeedback('Não foi possível registrar agora. Tente novamente.');
+    }
   };
 
-  const aiMessage =
-    timeInRange >= 70
-      ? 'Ótimo progresso! Continue com seus horários e hidratação.'
-      : 'Atenção: houve oscilação nesta semana. Vale registrar refeições e conversar com a médica.';
+  if (!patientId) {
+    return (
+      <section className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-amber-900">
+        Não encontramos seu identificador de paciente. Faça login novamente para carregar seus dados de glicemia.
+      </section>
+    );
+  }
+
+  if (glucoseQuery.isLoading || analysisQuery.isLoading) {
+    return (
+      <section className="flex items-center justify-center py-8 text-slate-600">
+        <Loader2 className="mr-2 animate-spin" size={18} /> Carregando informações de glicemia...
+      </section>
+    );
+  }
+
+  const analysis = analysisQuery.data;
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold text-slate-900">Glicemia</h1>
-
-      <form className="space-y-3 rounded-2xl border-2 border-slate-300 bg-white p-4" onSubmit={onSubmit}>
-        <label className="text-base font-semibold text-slate-900" htmlFor="value">
-          Valor (mg/dL)
-        </label>
-        <input
-          id="value"
-          type="number"
-          inputMode="numeric"
-          required
-          min={1}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          className="h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-base"
-        />
-
-        <label className="text-base font-semibold text-slate-900" htmlFor="photo">
-          Foto do glicosímetro (opcional)
-        </label>
-        <input
-          id="photo"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={onPhotoChange}
-          className="h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-base file:mr-3 file:rounded-lg file:border-0 file:bg-blue-800 file:px-3 file:py-2 file:text-white"
-        />
-
-        {photoDataUrl && (
-          <img src={photoDataUrl} alt="Foto do glicosímetro" className="h-28 w-full rounded-xl object-cover" />
-        )}
-
-        <label className="text-base font-semibold text-slate-900" htmlFor="note">
-          Observação (opcional)
-        </label>
-        <textarea
-          id="note"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          className="min-h-24 w-full rounded-xl border-2 border-slate-400 p-3 text-base"
-          placeholder="Ex.: medição em jejum"
-        />
-
-        <button className="h-12 min-h-11 w-full rounded-xl bg-blue-800 text-base font-bold text-white" type="submit">
-          Salvar registro
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-900">Glicemia</h1>
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          className="inline-flex h-10 items-center gap-1 rounded-xl bg-blue-800 px-3 text-sm font-bold text-white"
+        >
+          <Plus size={14} /> Registrar
         </button>
-      </form>
-
-      <div className="rounded-2xl border-2 border-slate-300 bg-white p-3">
-        <p className="mb-2 text-sm font-semibold text-slate-700">Período do gráfico</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[7, 14, 30].map((days) => (
-            <button
-              key={days}
-              type="button"
-              onClick={() => setPeriod(days as Period)}
-              className={`rounded-lg border-2 px-2 text-sm font-semibold ${
-                period === days ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-300 bg-white text-slate-800'
-              }`}
-            >
-              {days} dias
-            </button>
-          ))}
-        </div>
       </div>
+
+      {feedback && <p className="rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-700">{feedback}</p>}
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border-2 border-blue-200 bg-white p-3">
-          <p className="text-sm font-semibold text-slate-700">Time in Range</p>
-          <p className="text-2xl font-bold text-blue-900">{timeInRange}%</p>
-        </div>
-        <div className="rounded-xl border-2 border-emerald-200 bg-white p-3">
-          <p className="text-sm font-semibold text-slate-700">Média</p>
-          <p className="text-2xl font-bold text-emerald-800">{average} mg/dL</p>
-        </div>
+        <article className="rounded-xl border-2 border-blue-200 bg-white p-3">
+          <p className="text-sm text-slate-600">Média</p>
+          <p className="text-xl font-bold text-slate-900">{analysis?.average ?? '--'} mg/dL</p>
+        </article>
+        <article className="rounded-xl border-2 border-blue-200 bg-white p-3">
+          <p className="text-sm text-slate-600">A1c estimada</p>
+          <p className="text-xl font-bold text-slate-900">{analysis?.estimatedA1c ?? '--'}%</p>
+        </article>
       </div>
 
-      <article className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4">
-        <h2 className="text-base font-bold text-purple-900">Análise rápida</h2>
-        <p className="mt-1 text-base text-slate-900">{aiMessage}</p>
-        <p className="mt-1 text-sm text-slate-700">Hemoglobina glicada estimada: {getEstimatedA1c(average)}%</p>
+      <article className="rounded-2xl border-2 border-slate-300 bg-white p-4">
+        <p className="text-sm font-semibold text-slate-700">Análise</p>
+        <p className="text-base text-slate-900">{analysis?.insight ?? 'Sem análise disponível no momento.'}</p>
       </article>
-
-      <article className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-base text-slate-900">
-        Lembrete: registre a glicemia ao acordar e antes de dormir para acompanhar melhor os padrões.
-      </article>
-
-      {message && <p className="rounded-xl border-2 border-slate-300 bg-white p-3 text-base text-slate-800">{message}</p>}
 
       <ul className="space-y-2">
-        {visibleEntries.slice(0, 10).map((entry) => (
-          <li key={entry.id} className="rounded-xl border-2 border-slate-300 bg-white p-3">
-            <p className="text-base font-bold text-slate-900">{entry.value} mg/dL</p>
-            <p className="text-sm text-slate-700">{toLocalDate(entry.measuredAt)}</p>
-            {entry.note && <p className="text-sm text-slate-700">Obs.: {entry.note}</p>}
-            <p className="text-sm text-slate-700">
-              Status: {entry.status === 'pending' ? 'Aguardando internet' : 'Sincronizado'}
-            </p>
-          </li>
-        ))}
+        {sortedEntries.map((entry: GlucoseItem) => {
+          const semaphore = getSemaphore(entry.value);
+          return (
+            <li key={entry.id} className="rounded-2xl border-2 border-slate-300 bg-white p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-base font-bold text-slate-900">{entry.value} mg/dL</p>
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${semaphore.className}`}>
+                  {semaphore.label}
+                </span>
+              </div>
+              <p className="text-sm text-slate-700">{toLocalDate(entry.measuredAt)}</p>
+              {entry.notes && <p className="mt-2 text-sm text-slate-600">{entry.notes}</p>}
+            </li>
+          );
+        })}
+        {!sortedEntries.length && <li className="text-sm text-slate-600">Nenhum registro encontrado.</li>}
       </ul>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900">Novo registro de glicemia</h2>
+            <form className="mt-3 space-y-3" onSubmit={handleCreate}>
+              <input
+                type="number"
+                min={1}
+                required
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder="Valor em mg/dL"
+                className="h-12 w-full rounded-xl border-2 border-slate-300 px-3"
+              />
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Observações (opcional)"
+                className="min-h-24 w-full rounded-xl border-2 border-slate-300 p-3"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="h-11 flex-1 rounded-xl border-2 border-slate-300 bg-white font-semibold text-slate-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="h-11 flex-1 rounded-xl bg-blue-800 font-bold text-white disabled:opacity-60"
+                >
+                  {createMutation.isPending ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin" /> Salvando...
+                    </span>
+                  ) : (
+                    'Salvar'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

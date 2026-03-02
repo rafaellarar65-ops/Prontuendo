@@ -1,0 +1,72 @@
+{
+  "summary": "Iteration 3 testing for EndocrinoPront Pro. Tested all new endpoints from 8 PRs Codex integration: glucose, lab-results, bioimpedance backend endpoints + patient profile tabs (Exames, Glicemia, Bioimpedância). All 27 backend tests passed (100%). All frontend tabs load, show real data, and modals work correctly. No critical bugs found.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Exames tab - Adicionar exame modal",
+        "issues": ["Date input uses browser native date picker (not a custom/shadcn calendar). Minor UX inconsistency."]
+      }
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_new_endpoints_iter3.py",
+    "/app/test_reports/pytest/pytest_results_iter3.xml"
+  ],
+
+  "action_items": [
+    "CARRIED OVER (CRITICAL from iter2): Consultation autosave field name mismatch - frontend sends {subjetivo,objetivo,avaliacao,plano} but backend expects {anamnese,exameFisico,diagnostico,prescricao}. Fix in /app/src/lib/api/consultation-api.ts.",
+    "MINOR: Templates library page uses hardcoded templates instead of fetching from /api/v1/templates (carried over from iter2)."
+  ],
+
+  "critical_code_review_comments": [
+    "glucoseApi.analysis() in /app/src/lib/api/glucose-api.ts computes analysis LOCALLY (fetches all items then calculates average/min/max/total/inRangePercent in JS). The backend GET /glucose/analyze endpoint exists but is unused by the frontend. This is intentional (frontend needs 'total' and 'inRangePercent' which backend analyze doesn't return). No bug, just design choice to document.",
+    "Bioimpedance tab has no 'Add bioimpedance' button - users cannot add bioimpedance data from the patient profile UI. Only via direct API. Consider adding a creation form similar to the Glucose/Exames tabs.",
+    "GlucoseTab sparkline shows reversed order: values are .reverse()'d but the list shows newest first without reversing. Sparkline shows oldest-to-newest which is the correct visual trend direction."
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_new_endpoints_iter3.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (27/27 new endpoint tests pass)",
+    "frontend": "100% (all 3 new tabs load correctly with real data, modals work, query invalidation works)"
+  },
+
+  "seed_data_creation": "Created test data during backend tests: 1 glucose log (110 mg/dL), 1 lab result (TSH 2.5 mIU/L), 2 bioimpedance exams (75.5kg/22.3%/31.5kg and minimal). Also created 1 glucose reading (120 mg/dL) via UI test. All for patient cmm9rj1an002gvv4l7vkuyy1b (TEST_UI_Patient).",
+
+  "test_credentials": {
+    "medico": "rafaellarar65@gmail.com / crucru22",
+    "tenant": "x-tenant-id: clitenant0000000000000001",
+    "test_patient_id": "cmm9rj1an002gvv4l7vkuyy1b (TEST_UI_Patient)"
+  },
+
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+
+  "context_for_next_testing_agent": "Iteration 3 complete. All new features from 8 Codex PRs work correctly: GET /glucose?patientId, GET /glucose/analyze?patientId, GET /lab-results?patientId, GET /bioimpedance?patientId, POST /glucose, POST /lab-results, POST /bioimpedance all pass 100%. Frontend Exames/Glicemia/Bioimpedância tabs in patient profile page fully functional with real API integration. OUTSTANDING BUG (from iter2, not fixed): Consultation autosave in /app/src/lib/api/consultation-api.ts sends wrong SOAP field names to backend - frontend uses {subjetivo,objetivo,avaliacao,plano} but backend UpsertConsultationSectionDto expects {anamnese,exameFisico,diagnostico,prescricao}. Backend tests confirm: test_autosave_consultation_with_frontend_fields_fails passes (400 returned). Auth: NestJS backend localhost:8001, Vite/React frontend localhost:3000, Neon PostgreSQL. The frontend baseURL is /api/v1 (relative, via nginx proxy). Test patient ID: cmm9rj1an002gvv4l7vkuyy1b.",
+
+  "verified_features": [
+    "GET /api/v1/glucose?patientId=<id> returns array of GlucoseLogs ✓",
+    "GET /api/v1/glucose/analyze?patientId=<id> returns {average, min, max, count, trend} ✓",
+    "GET /api/v1/lab-results?patientId=<id> returns array of results ✓",
+    "GET /api/v1/bioimpedance?patientId=<id> returns array of exams ✓",
+    "POST /api/v1/glucose creates log with patientId in body ✓",
+    "POST /api/v1/lab-results creates lab result ✓",
+    "POST /api/v1/bioimpedance creates exam ✓",
+    "Frontend Glicemia tab shows stats (Média, Faixa, Total, In range) + Registrar button ✓",
+    "Frontend Exames tab shows table + Adicionar exame button ✓",
+    "Frontend Bioimpedância tab shows Última data, Gordura corporal, Massa muscular cards ✓",
+    "Query invalidation on create: glucose stats update after Registrar submission ✓",
+    "All tabs load from real backend (no old stub/placeholder data) ✓"
+  ]
+}

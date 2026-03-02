@@ -24,11 +24,54 @@ export class PatientPortalService {
     return this.prisma.glucoseLog.findMany({ where: { tenantId, patientId }, orderBy: { measuredAt: 'desc' }, take: 50 });
   }
 
+  async createGlucose(
+    tenantId: string,
+    patientId: string,
+    authPatientId: string | undefined,
+    payload: Record<string, unknown>,
+  ) {
+    this.ensurePatientScope(patientId, authPatientId);
+    const { value, notes, measuredAt } = payload as { value: number; notes?: string; measuredAt?: string };
+    return this.prisma.glucoseLog.create({
+      data: {
+        tenantId,
+        patientId,
+        value: Number(value),
+        measuredAt: measuredAt ? new Date(measuredAt) : new Date(),
+        notes: notes ?? null,
+      },
+    });
+  }
+
+  async myGlucoseAnalysis(tenantId: string, patientId: string, authPatientId?: string) {
+    this.ensurePatientScope(patientId, authPatientId);
+    const logs = await this.prisma.glucoseLog.findMany({
+      where: { tenantId, patientId },
+      orderBy: { measuredAt: 'desc' },
+      take: 30,
+    });
+
+    if (!logs.length) {
+      return { average: 0, estimatedA1c: null, timeInRange: 0, insight: null };
+    }
+
+    const values = logs.map((l) => l.value);
+    const average = Math.round(values.reduce((s, v) => s + v, 0) / values.length);
+    const estimatedA1c = Number(((average + 46.7) / 28.7).toFixed(1));
+    const inRange = values.filter((v) => v >= 70 && v <= 180).length;
+    const timeInRange = Math.round((inRange / values.length) * 100);
+
+    const insight =
+      timeInRange >= 70
+        ? 'Ótimo progresso! Continue com seus horários e hidratação.'
+        : 'Atenção: houve oscilação recente. Vale registrar refeições e conversar com a médica.';
+
+    return { average, estimatedA1c, timeInRange, insight };
+  }
+
   async myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
     this.ensurePatientScope(patientId, authPatientId);
-    
-    // Use raw query for JSON filtering since Prisma's JSON filtering syntax 
-    // may not be fully supported in this version
+
     return this.prisma.$queryRaw`
       SELECT * FROM "ActivityLog" 
       WHERE "tenantId" = ${tenantId} 
@@ -44,5 +87,25 @@ export class PatientPortalService {
       data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: { patientId, ...payload } as any },
     });
     return { status: 'received', patientId };
+  }
+
+  async submitQuestionnaire(
+    tenantId: string,
+    patientId: string,
+    authPatientId: string | undefined,
+    actorId: string,
+    payload: Record<string, unknown>,
+  ) {
+    this.ensurePatientScope(patientId, authPatientId);
+    await this.prisma.activityLog.create({
+      data: {
+        tenantId,
+        actorId,
+        action: 'QUESTIONNAIRE_SUBMITTED',
+        resource: 'patient-portal',
+        metadata: { patientId, ...payload } as any,
+      },
+    });
+    return { status: 'submitted', patientId };
   }
 }
