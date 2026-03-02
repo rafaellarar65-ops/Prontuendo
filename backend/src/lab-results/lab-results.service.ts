@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { toPrismaJson } from '../common/utils/prisma-json.util';
+import { serializeJson } from '../common/json-helper';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
 
@@ -39,7 +39,7 @@ export class LabResultsService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'lab-results', metadata: toPrismaJson(metadata) },
+      data: { tenantId, actorId, action, resource: 'lab-results', metadata: serializeJson(metadata) },
     });
   }
 }
