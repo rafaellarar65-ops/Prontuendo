@@ -17,11 +17,11 @@ async function main() {
 
   const doctorHash = await bcrypt.hash('crucru22', 10)
   const doctor = await prisma.user.upsert({
-    where: { tenantId_email: { tenantId, email: 'Rafaellarar65@gmail.com' } },
+    where: { tenantId_email: { tenantId, email: 'rafaellarar65@gmail.com' } },
     update: { passwordHash: doctorHash },
     create: {
       tenantId,
-      email: 'Rafaellarar65@gmail.com',
+      email: 'rafaellarar65@gmail.com',
       passwordHash: doctorHash,
       fullName: 'Dr. Rafael Menezes',
       role: 'MEDICO',
