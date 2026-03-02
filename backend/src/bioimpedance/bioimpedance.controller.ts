@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -16,27 +16,15 @@ export class BioimpedanceController {
   @Roles('MEDICO', 'RECEPCAO')
   @ApiOperation({ summary: 'Criar exame de bioimpedância' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateBioimpedanceDto) {
-    return this.bioimpedanceService.create(user.tenantId, user.sub, dto);
+    return this.bioimpedanceService.create(user.tenantId, dto.patientId, dto);
   }
 
-  @Post('extract')
-  @Roles('MEDICO', 'RECEPCAO')
-  @ApiOperation({ summary: 'Extrair bioimpedância de arquivo via IA' })
-  extract(@CurrentUser() user: AuthUser, @Body() payload: Record<string, unknown>) {
-    return this.bioimpedanceService.extract(user.tenantId, user.sub, payload);
-  }
-
-  @Get(':patientId/evolution')
+  @Get()
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
-  @ApiOperation({ summary: 'Dados de evolução temporal para gráficos' })
-  evolution(@CurrentUser() user: AuthUser, @Param('patientId') patientId: string) {
-    return this.bioimpedanceService.evolution(user.tenantId, patientId);
-  }
-
-  @Post(':id/report')
-  @Roles('MEDICO', 'RECEPCAO')
-  @ApiOperation({ summary: 'Geração de relatório PDF de bioimpedância' })
-  report(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.bioimpedanceService.report(user.tenantId, user.sub, id);
+  @ApiOperation({ summary: 'Listar exames de bioimpedância por paciente' })
+  @ApiQuery({ name: 'patientId', required: true, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  findByPatient(@CurrentUser() user: AuthUser, @Query('patientId') patientId: string, @Query('limit') limit?: string) {
+    return this.bioimpedanceService.findByPatient(user.tenantId, patientId, limit ? Number(limit) : 50);
   }
 }

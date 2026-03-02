@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BioimpedanceService } from './bioimpedance.service';
 
 describe('BioimpedanceService', () => {
-  it('deve listar evolução por tenant e paciente', async () => {
+  it('deve listar exames por tenant e paciente em ordem desc', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const prismaMock = { bioimpedanceExam: { findMany } } as unknown as PrismaService;
 
@@ -13,8 +13,14 @@ describe('BioimpedanceService', () => {
     }).compile();
 
     const service = moduleRef.get(BioimpedanceService);
-    await service.evolution('t1', 'p1');
+    await service.findByPatient('t1', 'p1');
 
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 't1', patientId: 'p1' } }));
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 't1', patientId: 'p1' },
+        orderBy: { measuredAt: 'desc' },
+        take: 50,
+      }),
+    );
   });
 });

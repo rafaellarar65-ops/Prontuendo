@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateBioimpedanceDto {
   @ApiProperty()
@@ -24,4 +24,9 @@ export class CreateBioimpedanceDto {
   @IsOptional()
   @IsNumber()
   muscleMassKg?: number;
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }
