@@ -58,7 +58,7 @@ model Patient {
   fullName         String
   cpf              String?
   birthDate        DateTime?
-  tags             String[]
+  tags             String?           // JSON string for SQLite
   lifecycle        String            @default("ACTIVE")
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
