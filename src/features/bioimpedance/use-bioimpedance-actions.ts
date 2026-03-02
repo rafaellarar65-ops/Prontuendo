@@ -13,7 +13,7 @@ export const useConfirmBioimpedanceMutation = () => {
   return useMutation({
     mutationFn: bioimpedanceApi.confirm,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.bioimpedanceEvolution });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bioimpedanceEvolution() });
     },
   });
 };
