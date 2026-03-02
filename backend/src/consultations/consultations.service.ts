@@ -21,7 +21,7 @@ export class ConsultationsService {
         patientId: dto.patientId,
         clinicianId,
         status: ConsultationStatus.DRAFT,
-        latestDraft: {},
+        latestDraft: serializeJson({}),
       },
     });
 
@@ -30,7 +30,7 @@ export class ConsultationsService {
         consultationId: consultation.id,
         version: 1,
         isFinal: false,
-        content: {},
+        content: serializeJson({}),
       },
     });
 
