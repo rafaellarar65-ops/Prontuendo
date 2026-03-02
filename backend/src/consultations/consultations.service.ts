@@ -64,11 +64,10 @@ export class ConsultationsService {
       orderBy: { version: 'desc' },
     });
 
-    const currentDraft = deserializeJson<Record<string, unknown>>(consultation.latestDraft) || {};
     const mergedContent = {
-      ...currentDraft,
+      ...(consultation.latestDraft as Record<string, unknown> | null),
       ...dto,
-    };
+    } as Prisma.InputJsonObject;
 
     const nextVersion = (lastVersion?.version ?? 0) + 1;
 
@@ -76,7 +75,7 @@ export class ConsultationsService {
       const updated = await trx.consultation.update({
         where: { id_tenantId: { id, tenantId } },
         data: {
-          latestDraft: serializeJson(mergedContent),
+          latestDraft: mergedContent,
           clinicianId,
         },
       });
@@ -86,7 +85,7 @@ export class ConsultationsService {
           consultationId: id,
           version: nextVersion,
           isFinal: false,
-          content: serializeJson(mergedContent),
+          content: mergedContent,
         },
       });
 
@@ -96,7 +95,7 @@ export class ConsultationsService {
           actorId: clinicianId,
           action: 'AUTOSAVE',
           resource: 'consultation',
-          metadata: serializeJson({ consultationId: id, version: nextVersion }),
+          metadata: { consultationId: id, version: nextVersion },
         },
       });
 
