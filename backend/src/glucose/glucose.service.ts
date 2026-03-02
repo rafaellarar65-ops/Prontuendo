@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { serializeJson } from '../common/json-helper';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGlucoseLogDto } from './dto/create-glucose-log.dto';
 
@@ -57,7 +57,7 @@ export class GlucoseService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'glucose', metadata: serializeJson(metadata) },
+      data: { tenantId, actorId, action, resource: 'glucose', metadata: (metadata) },
     });
   }
 }

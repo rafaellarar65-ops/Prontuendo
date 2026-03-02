@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
-import { serializeJson } from '../common/json-helper';
+
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -129,7 +129,7 @@ export class UsersService {
     metadata: Record<string, unknown>,
   ) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource, metadata: serializeJson(metadata) },
+      data: { tenantId, actorId, action, resource, metadata: (metadata) },
     });
   }
 }
