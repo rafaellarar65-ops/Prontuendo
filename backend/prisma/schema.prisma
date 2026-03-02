@@ -3,8 +3,19 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEDICO
+  RECEPCAO
+  PATIENT
+}
+
+enum ConsultationStatus {
+  DRAFT
+  FINALIZED
 }
 
 model Tenant {
@@ -27,7 +38,7 @@ model User {
   email         String
   passwordHash  String
   fullName      String
-  role          String         // "MEDICO", "RECEPCAO", "PATIENT"
+  role          Role
   patientLinkId String?
   isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
@@ -47,7 +58,7 @@ model Patient {
   fullName         String
   cpf              String?
   birthDate        DateTime?
-  tags             String?           // JSON string for SQLite
+  tags             String[]
   lifecycle        String            @default("ACTIVE")
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -82,7 +93,7 @@ model ActivityLog {
   actorId   String
   action    String
   resource  String
-  metadata  String?  // JSON string for SQLite
+  metadata  Json?
   createdAt DateTime @default(now())
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
 
@@ -94,8 +105,8 @@ model Consultation {
   tenantId    String
   patientId   String
   clinicianId String
-  status      String             @default("DRAFT") // "DRAFT" or "FINALIZED"
-  latestDraft String?            // JSON string for SQLite
+  status      ConsultationStatus @default(DRAFT)
+  latestDraft Json?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   finalizedAt DateTime?
@@ -113,7 +124,7 @@ model ConsultationVersion {
   consultationId String
   version        Int
   isFinal        Boolean      @default(false)
-  content        String       // JSON string for SQLite
+  content        Json
   hash           String?
   createdAt      DateTime     @default(now())
   consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
@@ -162,7 +173,7 @@ model BioimpedanceExam {
   weightKg    Float?
   bodyFatPct  Float?
   muscleMassKg Float?
-  metadata    String?  // JSON string for SQLite
+  metadata    Json?
   createdAt   DateTime @default(now())
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
   patient     Patient  @relation(fields: [patientId], references: [id])
