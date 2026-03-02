@@ -25,17 +25,15 @@ export class PatientPortalService {
     return this.prisma.glucoseLog.findMany({ where: { tenantId, patientId }, orderBy: { measuredAt: 'desc' }, take: 50 });
   }
 
-  async myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
+  myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
     this.ensurePatientScope(patientId, authPatientId);
-    const logs = await this.prisma.activityLog.findMany({
-      where: { tenantId, resource: 'documents' },
+    return this.prisma.activityLog.findMany({
+      where: {
+        tenantId,
+        resource: 'documents',
+        metadata: { path: ['patientId'], equals: patientId },
+      },
       orderBy: { createdAt: 'desc' },
-    });
-    
-    // Filter manually since SQLite doesn't support JSON path queries
-    return logs.filter(log => {
-      const metadata = deserializeJson<{ patientId?: string }>(log.metadata);
-      return metadata?.patientId === patientId;
     });
   }
 
