@@ -10,9 +10,7 @@ export interface ConsultationDraft {
   avaliacao?: string;
   plano?: string;
   [key: string]: unknown;
-}
-
-export interface ConsultationRecord {
+}export interface ConsultationRecord {
   id: string;
   tenantId: string;
   patientId: string;
@@ -36,7 +34,13 @@ export const consultationApi = {
     return data;
   },
   async autosave(id: string, draft: ConsultationDraft): Promise<ConsultationRecord> {
-    const { data } = await http.patch<ConsultationRecord>(`/consultations/${id}/autosave`, draft);
+    // Mapeia campos SOAP frontend → DTO do backend (objetos com text)
+    const payload: Record<string, { text: string } | undefined> = {};
+    if (draft.subjetivo !== undefined) payload.anamnese = { text: draft.subjetivo };
+    if (draft.objetivo !== undefined) payload.exameFisico = { text: draft.objetivo };
+    if (draft.avaliacao !== undefined) payload.diagnostico = { text: draft.avaliacao };
+    if (draft.plano !== undefined) payload.prescricao = { text: draft.plano };
+    const { data } = await http.patch<ConsultationRecord>(`/consultations/${id}/autosave`, payload);
     return data;
   },
   async finalize(id: string): Promise<ConsultationRecord & { finalVersion: number; hash: string }> {

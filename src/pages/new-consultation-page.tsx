@@ -256,6 +256,7 @@ export const NewConsultationPage = () => {
   const autosaveMutation = useMutation({
     mutationFn: ({ id, d }: { id: string; d: ConsultationDraft }) => consultationApi.autosave(id, d),
     onSuccess: () => { setSavingStatus('saved'); setTimeout(() => setSavingStatus('idle'), 2000); },
+    onError: () => { setSavingStatus('idle'); },
   });
 
   const finalizeMutation = useMutation({
