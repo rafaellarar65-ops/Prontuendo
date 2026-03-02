@@ -124,7 +124,7 @@ model ConsultationVersion {
   consultationId String
   version        Int
   isFinal        Boolean      @default(false)
-  content        Json
+  content        String       // JSON string for SQLite
   hash           String?
   createdAt      DateTime     @default(now())
   consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
