@@ -57,7 +57,7 @@ export class GlucoseService {
 
   private async audit(tenantId: string, actorId: string, action: string, metadata: Record<string, unknown>) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'glucose', metadata: metadata },
+      data: { tenantId, actorId, action, resource: 'glucose', metadata: metadata as any },
     });
   }
 }
