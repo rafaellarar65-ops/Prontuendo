@@ -1,10 +1,8 @@
 import { createHash } from 'crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ConsultationStatus, Prisma } from '@prisma/client';
 
-import { serializeJson, deserializeJson } from '../common/json-helper';
-import { ConsultationStatus } from '../types/prisma-enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 import { ListConsultationsDto } from './dto/list-consultations.dto';
