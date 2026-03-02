@@ -106,7 +106,7 @@ model Consultation {
   patientId   String
   clinicianId String
   status      ConsultationStatus @default(DRAFT)
-  latestDraft Json?
+  latestDraft String?            // JSON string for SQLite
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   finalizedAt DateTime?
