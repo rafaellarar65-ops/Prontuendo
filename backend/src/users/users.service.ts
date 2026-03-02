@@ -129,7 +129,7 @@ export class UsersService {
     metadata: Record<string, unknown>,
   ) {
     await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource, metadata: toPrismaJson(metadata) },
+      data: { tenantId, actorId, action, resource, metadata: serializeJson(metadata) },
     });
   }
 }
