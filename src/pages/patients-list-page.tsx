@@ -14,11 +14,12 @@ import { useCreatePatientMutation } from '@/features/patients/use-create-patient
 import type { CreatePatientDto, Patient } from '@/types/api';
 
 // ── Sex badge ────────────────────────────────────────────────────
-const sexLabel = { F: 'Feminino', M: 'Masculino', OUTRO: 'Outro' };
-const sexColor = {
+const sexLabel: Record<string, string> = { F: 'Feminino', M: 'Masculino', OUTRO: 'Outro', NI: '' };
+const sexColor: Record<string, string> = {
   F: 'bg-rose-50 text-rose-600',
   M: 'bg-sky-50 text-sky-600',
   OUTRO: 'bg-slate-100 text-slate-500',
+  NI: 'bg-slate-50 text-slate-400',
 };
 
 const calcAge = (birthDate: string) =>
@@ -53,10 +54,10 @@ const PatientItem = ({ patient }: { patient: Patient }) => {
       <span
         className={clsx(
           'rounded-full px-2.5 py-0.5 text-xs font-medium',
-          sexColor[patient.sex],
+          sexColor[patient.sex ?? 'NI'],
         )}
       >
-        {sexLabel[patient.sex]}
+        {sexLabel[patient.sex ?? 'NI']}
       </span>
       <ArrowRight
         size={15}
@@ -73,6 +74,7 @@ const EMPTY: CreatePatientDto = {
   sex: 'F',
   phone: '',
   email: '',
+  cpf: '',
 };
 
 const NewPatientModal = ({ onClose }: { onClose: () => void }) => {
@@ -87,10 +89,11 @@ const NewPatientModal = ({ onClose }: { onClose: () => void }) => {
     e.preventDefault();
     const dto: CreatePatientDto = {
       fullName: form.fullName,
-      birthDate: form.birthDate,
+      ...(form.birthDate ? { birthDate: form.birthDate } : {}),
       sex: form.sex,
       ...(form.phone ? { phone: form.phone } : {}),
       ...(form.email ? { email: form.email } : {}),
+      ...(form.cpf ? { cpf: form.cpf } : {}),
     };
     mutate(dto, { onSuccess: onClose });
   };
@@ -152,8 +155,20 @@ const NewPatientModal = ({ onClose }: { onClose: () => void }) => {
                 <option value="F">Feminino</option>
                 <option value="M">Masculino</option>
                 <option value="OUTRO">Outro</option>
+                <option value="NI">Não informado</option>
               </select>
             </div>
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">CPF</label>
+            <input
+              value={form.cpf ?? ''}
+              onChange={set('cpf')}
+              placeholder="000.000.000-00"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
           </div>
 
           {/* Phone */}

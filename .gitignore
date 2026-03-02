@@ -6,3 +6,7 @@ tsconfig.tsbuildinfo
 .env
 .env.local
 .env.*.local
+-e 
+# Environment files
+*.env
+*.env.*

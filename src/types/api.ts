@@ -6,26 +6,40 @@ export interface AuthTokens {
 export interface UserProfile {
   id: string;
   name: string;
+  fullName?: string;
   email: string;
-  role: 'MEDICO' | 'ADMIN' | 'ASSISTENTE';
+  role: 'MEDICO' | 'ADMIN' | 'ASSISTENTE' | 'RECEPCAO';
+  roles?: string[];
   specialty?: string;
+  tenantId?: string;
 }
 
 export interface Patient {
   id: string;
   fullName: string;
-  birthDate: string;
-  sex: 'F' | 'M' | 'OUTRO';
+  birthDate?: string;
+  sex?: 'F' | 'M' | 'OUTRO' | 'NI';
+  cpf?: string;
   phone?: string;
   email?: string;
+  address?: string;
+  notes?: string;
+  tags?: string[];
+  lifecycle?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreatePatientDto {
   fullName: string;
-  birthDate: string;
-  sex: 'F' | 'M' | 'OUTRO';
+  birthDate?: string;
+  sex?: 'F' | 'M' | 'OUTRO' | 'NI';
+  cpf?: string;
   phone?: string;
   email?: string;
+  address?: string;
+  notes?: string;
+  tags?: string[];
 }
 
 export type UpdatePatientDto = Partial<CreatePatientDto>;

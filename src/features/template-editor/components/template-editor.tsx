@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fabric } from 'fabric';
+import { Download, Save, Trash2, Upload } from 'lucide-react';
+import { http } from '@/lib/api/http';
 
 type ToolType =
   | 'text'
@@ -24,6 +26,17 @@ const pageDimensions = (format: PageFormat) =>
     ? { width: Math.round(297 * MM_TO_PX), height: Math.round(210 * MM_TO_PX) }
     : { width: Math.round(210 * MM_TO_PX), height: Math.round(297 * MM_TO_PX) };
 
+// ── API helpers ──────────────────────────────────────────────────
+const saveTemplate = async (name: string, json: object) => {
+  const { data } = await http.post('/templates', { payload: { name, canvas: json } });
+  return data as { id: string };
+};
+
+const loadTemplates = async (): Promise<Array<{ id: string; payload: { name?: string; canvas?: object } }>> => {
+  const { data } = await http.get('/templates');
+  return data as Array<{ id: string; payload: { name?: string; canvas?: object } }>;
+};
+
 export const TemplateEditor = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvasRef = useRef<any>(null);
@@ -35,6 +48,9 @@ export const TemplateEditor = () => {
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [initError, setInitError] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('Novo template');
+  const [savedTemplates, setSavedTemplates] = useState<Array<{ id: string; payload: { name?: string; canvas?: object } }>>([]);
+  const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const dimensions = useMemo(() => pageDimensions(pageFormat), [pageFormat]);
 
@@ -181,8 +197,78 @@ export const TemplateEditor = () => {
     return canvas.getObjects().filter((obj: any) => !obj.data?.isGridLine).reverse();
   }, [historyIndex, selectedObject]);
 
+  const handleSave = useCallback(async () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    setSavingStatus('saving');
+    try {
+      await saveTemplate(templateName, canvas.toJSON(['data']));
+      setSavingStatus('saved');
+      const templates = await loadTemplates();
+      setSavedTemplates(templates);
+      setTimeout(() => setSavingStatus('idle'), 2000);
+    } catch {
+      setSavingStatus('idle');
+    }
+  }, [templateName]);
+
+  const handleLoad = useCallback((template: { id: string; payload: { name?: string; canvas?: object } }) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !template.payload.canvas) return;
+    if (template.payload.name) setTemplateName(template.payload.name);
+    canvas.loadFromJSON(template.payload.canvas, () => canvas.renderAll());
+  }, []);
+
+  const handleClear = useCallback(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    canvas.getObjects().filter((obj: any) => !obj.data?.isGridLine).forEach((obj: any) => canvas.remove(obj));
+    canvas.renderAll();
+  }, []);
+
+  useEffect(() => {
+    loadTemplates().then(setSavedTemplates).catch(() => {});
+  }, []);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[220px_1fr_320px]">
+    <div className="space-y-3">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 rounded-lg border bg-white px-4 py-2">
+        <input
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
+          className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400"
+          placeholder="Nome do template"
+        />
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+          type="button"
+        >
+          <Save size={13} />
+          {savingStatus === 'saving' ? 'Salvando...' : savingStatus === 'saved' ? 'Salvo!' : 'Salvar'}
+        </button>
+        <button onClick={handleClear} className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50" type="button">
+          <Trash2 size={12} /> Limpar
+        </button>
+        {savedTemplates.length > 0 && (
+          <select
+            onChange={(e) => {
+              const t = savedTemplates.find((tpl) => tpl.id === e.target.value);
+              if (t) handleLoad(t);
+            }}
+            defaultValue=""
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-indigo-400"
+          >
+            <option value="" disabled>Carregar template...</option>
+            {savedTemplates.map((t) => (
+              <option key={t.id} value={t.id}>{t.payload.name ?? t.id}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr_320px]">
       <aside className="space-y-3 rounded-lg border bg-white p-3">
         <h2 className="font-semibold">Toolbar</h2>
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -232,6 +318,7 @@ export const TemplateEditor = () => {
           <ul className="mt-2 space-y-1 text-xs">{variables.map((variable) => <li className="rounded border px-2 py-1" key={variable}>{variable}</li>)}</ul>
         </section>
       </aside>
+    </div>
     </div>
   );
 };

@@ -59,6 +59,11 @@ model Patient {
   fullName         String
   cpf              String?
   birthDate        DateTime?
+  sex              String?           @default("NI")
+  phone            String?
+  email            String?
+  address          String?
+  notes            String?
   tags             String[]
   lifecycle        String            @default("ACTIVE")
   createdAt        DateTime          @default(now())
