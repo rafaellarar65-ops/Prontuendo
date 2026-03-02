@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
@@ -16,18 +16,19 @@ export class LabResultsController {
   @Roles('MEDICO', 'RECEPCAO')
   @ApiOperation({ summary: 'Criar resultado de exame laboratorial' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateLabResultDto) {
-    return this.labResultsService.create(user.tenantId, user.sub, dto);
+    return this.labResultsService.create(user.tenantId, dto.patientId, dto);
   }
 
-  @Get(':patientId/history')
+  @Get()
   @Roles('MEDICO', 'RECEPCAO', 'PATIENT')
-  @ApiOperation({ summary: 'Histórico comparativo de exames do paciente' })
-  history(
+  @ApiOperation({ summary: 'Listar resultados de exames do paciente' })
+  findByPatient(
     @CurrentUser() user: AuthUser,
-    @Param('patientId') patientId: string,
-    @Query('examName') examName?: string,
+    @Query('patientId') patientId: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.labResultsService.history(user.tenantId, patientId, examName);
+    const parsedLimit = limit ? Number(limit) : undefined;
+    return this.labResultsService.findByPatient(user.tenantId, patientId, parsedLimit);
   }
 
   @Post('extract')
