@@ -7,17 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  MEDICO
-  RECEPCAO
-  PATIENT
-}
-
-enum ConsultationStatus {
-  DRAFT
-  FINALIZED
-}
-
 model Tenant {
   id               String            @id @default(cuid())
   name             String
