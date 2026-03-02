@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { serializeJson } from '../common/json-helper';
+import {  } ;
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class AiService {
         actorId,
         action: 'AI_PROXY',
         resource: operation,
-        metadata: serializeJson(payload),
+        metadata: (payload),
       },
     });
 
