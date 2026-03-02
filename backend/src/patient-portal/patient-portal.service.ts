@@ -31,7 +31,8 @@ export class PatientPortalService {
         tenantId,
         resource: 'documents',
         metadata: {
-          equals: { patientId },
+          path: ['patientId'],
+          equals: patientId,
         },
       },
       orderBy: { createdAt: 'desc' },
