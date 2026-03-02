@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
-import { toPrismaJson } from '../common/utils/prisma-json.util';
+import { serializeJson } from '../common/json-helper';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
