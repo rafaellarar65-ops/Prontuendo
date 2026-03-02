@@ -34,7 +34,7 @@ export class PatientsService {
     const where: Prisma.PatientWhereInput = {
       tenantId,
       lifecycle: query.lifecycle,
-      fullName: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
+      fullName: query.q ? { contains: query.q } : undefined, // SQLite doesn't support mode
     };
 
     const patients = await this.prisma.patient.findMany({
