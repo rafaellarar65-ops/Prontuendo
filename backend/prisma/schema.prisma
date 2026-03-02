@@ -173,7 +173,7 @@ model BioimpedanceExam {
   weightKg    Float?
   bodyFatPct  Float?
   muscleMassKg Float?
-  metadata    Json?
+  metadata    String?  // JSON string for SQLite
   createdAt   DateTime @default(now())
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
   patient     Patient  @relation(fields: [patientId], references: [id])
