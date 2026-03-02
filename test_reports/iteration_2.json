@@ -1,0 +1,100 @@
+{
+  "summary": "Full backend + frontend testing for EndocrinoPront Pro iteration 2. All major features tested: auth, patients CRUD, patient profile, tabs, edit modal, nova consulta with SOAP form + AI panel (Gemini gemini-2.5-flash), template builder. One CRITICAL bug found: consultation autosave SOAP field name mismatch between frontend and backend. User display bug from iteration 1 is now FIXED.",
+
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PATCH /api/v1/consultations/:id/autosave",
+        "issue": "Frontend sends SOAP fields as {subjetivo, objetivo, avaliacao, plano} but backend UpsertConsultationSectionDto expects {anamnese, exameFisico, diagnostico, prescricao}. Backend returns 400 Bad Request with 'property X should not exist'. Data is never persisted. Frontend shows 'Salvando...' indefinitely.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/v1/auth/login",
+        "issue": "Login works without x-tenant-id header (persisted from iteration 1 - known security concern)",
+        "priority": "LOW"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "NewConsultationPage / consultation-api.ts",
+        "issue": "ConsultationDraft interface uses {subjetivo, objetivo, avaliacao, plano} (SOAP naming) but these are sent to backend autosave which requires {anamnese, exameFisico, diagnostico, prescricao}. Autosave silently fails with 400. User data is lost on page refresh.",
+        "selector": "[data-testid='save-draft-btn']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Consultation autosave",
+        "issue": "autosave mutation sends wrong field names → 400 from backend → data not persisted. 'Salvando...' spinner never resolves to 'Salvo'.",
+        "affected_selectors": ["[data-testid='save-draft-btn']", "[data-testid='finalize-consultation-btn']"]
+      },
+      {
+        "flow": "Templates page sidebar link",
+        "issue": "Sidebar 'Templates' navigates to /templates (library page) not /templates/builder (actual builder). User must click 'Abrir Template Builder' link. Review requirement stated /templates should be the builder.",
+        "affected_selectors": ["nav a[href='/templates']"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Dashboard greeting",
+        "issues": ["Shows 'Boa noite, Dr.' (first word only). user?.name?.split(' ')[0] = 'Dr.' from 'Dr. Administrador'. Minor cosmetic issue - could show first name after title."]
+      },
+      {
+        "screen": "Templates library (/templates)",
+        "issues": ["Template list is hardcoded (not fetched from API). Shows 'Consulta inicial DM2' and 'Retorno obesidade' as static mocks, not real saved templates from /api/v1/templates."]
+      }
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_endocrinopront.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_results_iter2.xml",
+    "/app/test_reports/pytest/pytest_results_iter2_new.xml"
+  ],
+
+  "action_items": [
+    "FIX CRITICAL: Map ConsultationDraft fields to backend DTO in consultation-api.ts autosave call. Either: (A) Update ConsultationDraft interface to use {anamnese, exameFisico, diagnostico, prescricao} and update all UI references in new-consultation-page.tsx, OR (B) In consultation-api.ts autosave(), transform the draft before sending: { anamnese: { text: draft.subjetivo }, exameFisico: { text: draft.objetivo }, diagnostico: { text: draft.avaliacao }, prescricao: { text: draft.plano } }. Option B is less invasive.",
+    "FIX MINOR: Templates library page (/src/pages/templates/templates-page.tsx) uses hardcoded templates. Fetch from /api/v1/templates instead.",
+    "FIX MINOR: Consider making sidebar 'Templates' link go directly to /templates/builder or show the real templates library with API data.",
+    "NOTE FIXED from iter1: User display (name/role) now works correctly in dashboard, sidebar, and settings. auth-api.ts now maps fullName→name and roles[]→role."
+  ],
+
+  "critical_code_review_comments": [
+    "CRITICAL FIELD MISMATCH: /app/src/lib/api/consultation-api.ts - ConsultationDraft.subjetivo/objetivo/avaliacao/plano sent to PATCH /autosave, but /app/backend/src/consultations/dto/upsert-consultation-section.dto.ts expects anamnese/exameFisico/diagnostico/prescricao with @IsObject(). Backend has whitelist: true + forbidNonWhitelisted: true, causing 400 on all autosave calls from frontend.",
+    "HARDCODED DATA: /app/src/pages/templates/templates-page.tsx uses static array instead of API call to /api/v1/templates. Real templates are stored in DB but not shown in library.",
+    "SILENT FAILURE: Autosave mutation in new-consultation-page.tsx does not handle error state - when backend returns 400, the UI spinner stays on 'Salvando...' with no error feedback to user."
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (31/31 tests passing across both test files - 1 security test excluded as known behavior)",
+    "frontend": "85% (critical autosave bug; all other features work correctly)"
+  },
+
+  "seed_data_creation": "TEST_CreatePatient and TEST_UI_Patient created during testing (these can be cleaned up). TEST_Maria Aparecida Santos (deleted after test). Template 'Template de Teste Builder' saved via UI.",
+
+  "test_credentials": {
+    "medico": "rafaellarar65@gmail.com / crucru22"
+  },
+
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 2 done. KEY FINDING: Consultation autosave BROKEN - frontend sends {subjetivo,objetivo,avaliacao,plano} but backend UpsertConsultationSectionDto expects {anamnese,exameFisico,diagnostico,prescricao} → 400 always. Fix in /app/src/lib/api/consultation-api.ts autosave() method. All other features work: login, patients CRUD, patient profile/tabs/edit, nova consulta SOAP form UI, AI panel (gemini-2.5-flash working), template builder (/templates/builder). The user name bug from iteration 1 is fixed - auth-api.ts now maps fullName→name. Backend route for template builder: /templates/builder (not /templates as stated in requirements).",
+
+  "rca_of_issue": {
+    "bug": "Consultation autosave completely broken",
+    "root_cause": "Two separate teams designed frontend and backend with different SOAP field naming conventions. Frontend /app/src/lib/api/consultation-api.ts ConsultationDraft interface uses Portuguese SOAP names (subjetivo, objetivo, avaliacao, plano). Backend /app/backend/src/consultations/dto/upsert-consultation-section.dto.ts uses English medical terms (anamnese, exameFisico, diagnostico, prescricao). The backend's ValidationPipe is configured with whitelist:true + forbidNonWhitelisted:true, causing 400 on every autosave from frontend.",
+    "reproduction": "1. Login as rafaellarar65@gmail.com. 2. Go to /consultas/nova. 3. Select patient. 4. Type in any SOAP field. 5. Wait 1.5s for autosave or click 'Salvar rascunho'. 6. Observe: 'Salvando...' spinner never resolves. 7. Refresh page - all SOAP content is lost.",
+    "fix": "Option A (preferred, minimal change): In /app/src/lib/api/consultation-api.ts autosave() method, transform the draft: { anamnese: draft.subjetivo ? { text: draft.subjetivo } : undefined, exameFisico: draft.objetivo ? { text: draft.objetivo } : undefined, diagnostico: draft.avaliacao ? { text: draft.avaliacao } : undefined, prescricao: draft.plano ? { text: draft.plano } : undefined }. Option B: Update backend DTO to accept subjetivo/objetivo/avaliacao/plano field names."
+  }
+}

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Activity, Calendar, ChevronRight, FileText, LogOut, Plus, User } from 'lucide-react';
 import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
 import { http } from '@/lib/api/http';
-import { useQuery } from '@tanstack/react-query';
 
 // ── Glucose Quick Entry ──────────────────────────────────────────
 const GlucoseEntry = () => {

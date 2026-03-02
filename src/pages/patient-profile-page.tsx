@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity, Calendar, ChevronRight, Edit2, FileText, Loader2,
-  Phone, Mail, MapPin, Plus, Save, Stethoscope, User, X,
+  Phone, Mail, MapPin, Plus, Stethoscope, User, X,
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';

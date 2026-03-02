@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fabric } from 'fabric';
-import { Download, Save, Trash2, Upload } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
 import { http } from '@/lib/api/http';
 
 type ToolType =

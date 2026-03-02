@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { consultationApi, ConsultationDraft } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
 import { aiApi } from '@/lib/api/ai-api';
@@ -122,7 +121,7 @@ const SoapSection = ({
   <div>
     <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
       <span className="flex h-5 w-5 items-center justify-center rounded bg-indigo-100 text-xs font-bold text-indigo-700">
-        {field[0].toUpperCase()}
+        {(field[0] ?? '').toUpperCase()}
       </span>
       {label}
     </label>

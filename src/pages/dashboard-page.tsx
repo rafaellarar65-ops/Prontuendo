@@ -83,12 +83,13 @@ const quickActions = [
 export const DashboardPage = () => {
   const user = useAuthStore((s) => s.user);
   const { data: patients, isLoading: loadingPatients } = usePatientsQuery();
-  const { data: consultations, isLoading: loadingConsultations } = useConsultationsQuery();
+  const { data: consultationsData } = useConsultationsQuery();
+  const consultations = Array.isArray(consultationsData) ? consultationsData as Array<{status: string}> : [];
   const { data: todayAppointments, isLoading: loadingAppointments } = useAppointmentsQuery(today);
 
   const activePatients = patients?.length ?? 0;
-  const totalConsultations = consultations?.length ?? 0;
-  const inProgress = consultations?.filter((c) => c.status === 'EM_ANDAMENTO').length ?? 0;
+  const totalConsultations = consultations.length;
+  const inProgress = consultations.filter((c) => c.status === 'EM_ANDAMENTO').length;
   const todayCount = todayAppointments?.length ?? 0;
 
   return (
@@ -138,7 +139,7 @@ export const DashboardPage = () => {
         />
         <KpiCard
           label="Em andamento"
-          value={loadingConsultations ? '—' : inProgress}
+          value={inProgress}
           sub="Consultas abertas"
           icon={Clock}
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
@@ -146,7 +147,7 @@ export const DashboardPage = () => {
         />
         <KpiCard
           label="Total de consultas"
-          value={loadingConsultations ? '—' : totalConsultations}
+          value={totalConsultations}
           sub="Histórico geral"
           icon={Activity}
           gradient="bg-gradient-to-br from-violet-600 to-purple-700"

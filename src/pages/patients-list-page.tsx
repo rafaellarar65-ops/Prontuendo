@@ -90,7 +90,7 @@ const NewPatientModal = ({ onClose }: { onClose: () => void }) => {
     const dto: CreatePatientDto = {
       fullName: form.fullName,
       ...(form.birthDate ? { birthDate: form.birthDate } : {}),
-      sex: form.sex,
+      ...(form.sex ? { sex: form.sex } : {}),
       ...(form.phone ? { phone: form.phone } : {}),
       ...(form.email ? { email: form.email } : {}),
       ...(form.cpf ? { cpf: form.cpf } : {}),

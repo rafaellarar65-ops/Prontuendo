@@ -11,7 +11,7 @@ import { glucometerOcrPrompt } from './prompts/glucometer-ocr';
 import { patientEvolutionPrompt } from './prompts/patient-evolution';
 import { protocolConsensusPrompt } from './prompts/protocol-consensus';
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-2.5-flash';
 
 @Injectable()
 export class AiService {
