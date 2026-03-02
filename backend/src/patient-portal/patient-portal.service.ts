@@ -24,19 +24,18 @@ export class PatientPortalService {
     return this.prisma.glucoseLog.findMany({ where: { tenantId, patientId }, orderBy: { measuredAt: 'desc' }, take: 50 });
   }
 
-  myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
+  async myDocuments(tenantId: string, patientId: string, authPatientId?: string) {
     this.ensurePatientScope(patientId, authPatientId);
-    return this.prisma.activityLog.findMany({
-      where: {
-        tenantId,
-        resource: 'documents',
-        metadata: {
-          path: ['patientId'],
-          equals: patientId,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    
+    // Use raw query for JSON filtering since Prisma's JSON filtering syntax 
+    // may not be fully supported in this version
+    return this.prisma.$queryRaw`
+      SELECT * FROM "ActivityLog" 
+      WHERE "tenantId" = ${tenantId} 
+        AND "resource" = 'documents'
+        AND "metadata"->>'patientId' = ${patientId}
+      ORDER BY "createdAt" DESC
+    `;
   }
 
   async uploadExam(tenantId: string, patientId: string, authPatientId: string | undefined, actorId: string, payload: Record<string, unknown>) {
