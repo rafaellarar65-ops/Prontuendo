@@ -1,0 +1,90 @@
+{
+  "summary": "First round of testing for EndocrinoPront Pro after Neon PostgreSQL migration. Backend (NestJS) and frontend (Vite/React) tested. Core auth flow and dashboard working. One medium-priority user display bug found due to type mismatch between backend response and frontend UserProfile interface.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/v1/auth/login",
+        "issue": "Login succeeds (201) even without x-tenant-id header - prisma findFirst with undefined tenantId effectively ignores tenant filter. Security concern for multi-tenant environments.",
+        "priority": "LOW"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "DashboardPage / MedicalShell / SettingsPage",
+        "issue": "User display shows fallback 'Médico' instead of actual doctor name. Root cause: backend returns 'fullName' and 'roles: []' (array) but frontend UserProfile type (/app/src/types/api.ts) expects 'name' (string) and 'role' (string). This affects: dashboard greeting ('Boa noite, Médico'), sidebar user section (no name/role shown), settings 'Nome completo' field (empty), and user initials (always shows 'M' fallback).",
+        "selector": "h1, aside .min-w-0 p",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "All pages",
+        "issue": "No data-testid attributes found anywhere in the frontend. All testing relies on CSS selectors/text content. Makes automated testing brittle.",
+        "selector": "[data-testid]",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard / All pages",
+        "issues": [
+          "Professional dark sidebar (slate-900) with good contrast - OK",
+          "KPI cards with colorful gradients - visually appealing",
+          "Sidebar user section shows only 'M' avatar and 'Sair' - no user name or role text (due to name/role bug above)"
+        ]
+      }
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_endocrinopront.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+
+  "action_items": [
+    "FIX (HIGH): Map backend 'fullName' to 'name' in UserProfile OR update frontend to use 'fullName'. Files to update: /app/src/types/api.ts (add fullName field), /app/src/lib/api/auth-api.ts (map response), /app/src/pages/dashboard-page.tsx (use user?.fullName), /app/src/components/layout/medical-shell.tsx (use user?.fullName), /app/src/pages/configuracoes/settings-page.tsx (use user?.fullName)",
+    "FIX (LOW): Validate x-tenant-id header in auth login endpoint - return 400 if missing",
+    "ADD (LOW): data-testid attributes to all interactive elements (buttons, inputs, nav links) per testing standards"
+  ],
+
+  "critical_code_review_comments": [
+    "TYPE MISMATCH BUG: /app/src/types/api.ts UserProfile.name vs backend returning fullName. Backend also returns roles[] (array) but frontend expects role (string). This is a breaking mismatch that causes user name/role to be undefined throughout the UI.",
+    "SECURITY: /app/backend/src/auth/auth.controller.ts - login() accepts x-tenant-id header but doesn't validate it's present. Missing header validation allows cross-tenant data access risk.",
+    "MISSING TESTIDS: No data-testid attributes in any frontend component - adds /app/src/pages/medical-login-page.tsx, /app/src/components/layout/medical-shell.tsx etc should have data-testid on form inputs, buttons, nav items"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_endocrinopront.py"
+  ],
+
+  "success_rate": {
+    "backend": "93% (13/14 tests passing - 1 minor security test failed as expected behavior)",
+    "frontend": "85% (core flows work, user display bug affects name/role rendering)"
+  },
+
+  "seed_data_creation": "No seed data created. Database already has tenant 'clitenant0000000000000001' with 2 users (medico + recepcao) from previous seed.",
+
+  "test_credentials": {
+    "medico": "rafaellarar65@gmail.com / crucru22",
+    "recepcao": "recepcao@endocrinopro.com / Recepcao@123!"
+  },
+
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+
+  "context_for_next_testing_agent": "Backend is NestJS at /app/backend (port 8001). Frontend is Vite/React at /app/src (port 3000). No /app/frontend directory. Env files: /app/.env (frontend) and /app/backend/.env. Backend uses Neon PostgreSQL (Prisma). The key auth issue is a type mismatch between UserProfile in /app/src/types/api.ts (has 'name'/'role') and backend auth response (returns 'fullName'/'roles[]'). Both login endpoints work correctly. All 11 sidebar items verified. API calls from dashboard (patients, consultations, agenda) all return 200.",
+
+  "rca_of_issue": {
+    "bug": "User name not displaying correctly",
+    "root_cause": "Backend auth service (/app/backend/src/auth/auth.service.ts) returns user object with field 'fullName' (line 200-208). Frontend UserProfile type (/app/src/types/api.ts line 6-12) expects field 'name'. The authApi.login() in /app/src/lib/api/auth-api.ts returns the backend response directly without mapping. So user.name = undefined at runtime.",
+    "reproduction": "Login as rafaellarar65@gmail.com / crucru22. Dashboard greeting shows 'Boa noite, Médico' (fallback) instead of 'Boa noite, Dr. Administrador'. Sidebar user section shows only 'M' initial with no name/role text.",
+    "fix_options": [
+      "Option A: Update /app/src/types/api.ts UserProfile to match backend response: change 'name' to 'fullName', change 'role: string' to 'roles: string[]', then update all consumers",
+      "Option B: Map in /app/src/lib/api/auth-api.ts: return { ...data, user: { ...data.user, name: data.user.fullName, role: data.user.roles?.[0] } }"
+    ]
+  }
+}
