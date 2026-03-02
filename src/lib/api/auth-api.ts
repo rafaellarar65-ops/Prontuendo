@@ -23,12 +23,20 @@ const tenantHeader = (): Record<string, string> | null => {
 export const authApi = {
   async login(payload: LoginPayload): Promise<LoginResponse> {
     const headers = tenantHeader();
-    const { data } = await http.post<LoginResponse>(
+    const { data } = await http.post<any>(
       '/auth/login',
       payload,
       headers ? { headers } : undefined,
     );
-    return data;
+    // Normaliza campos do backend (fullName → name, roles[] → role)
+    return {
+      ...data,
+      user: {
+        ...data.user,
+        name: data.user.fullName ?? data.user.name,
+        role: (data.user.roles?.[0] ?? data.user.role) as UserProfile['role'],
+      },
+    };
   },
 
   async changePassword(payload: ChangePasswordPayload): Promise<void> {
