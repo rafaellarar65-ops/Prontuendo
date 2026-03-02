@@ -27,7 +27,7 @@ model User {
   email         String
   passwordHash  String
   fullName      String
-  role          Role
+  role          String         // "MEDICO", "RECEPCAO", "PATIENT"
   patientLinkId String?
   isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
