@@ -93,7 +93,7 @@ model ActivityLog {
   actorId   String
   action    String
   resource  String
-  metadata  Json?
+  metadata  String?  // JSON string for SQLite
   createdAt DateTime @default(now())
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
 
