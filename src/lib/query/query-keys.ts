@@ -3,6 +3,7 @@ export const queryKeys = {
   patients: ['patients'] as const,
   patientDetail: (patientId: string) => ['patients', patientId] as const,
   consultations: ['consultations'] as const,
+  consultationById: (consultationId: string) => ['consultations', consultationId] as const,
   consultationTemplates: ['consultation-templates'] as const,
   appointments: ['appointments'] as const,
   appointmentsByDate: (date: string) => ['appointments', date] as const,
