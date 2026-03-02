@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { deserializeJson, serializeJson } from '../utils/json.utils';
 
 @Injectable()
 export class PatientPortalService {
