@@ -16,6 +16,11 @@ export const queryKeys = {
   protocols: ['protocols'] as const,
   glucose: (patientId: string) => ['glucose', patientId] as const,
   labResults: (patientId: string) => ['lab-results', patientId] as const,
+  prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
+  activePrescriptions: (patientId: string) => ['prescriptions', 'active', patientId] as const,
+  prescriptionsByConsultation: (consultationId: string) =>
+    ['prescriptions', 'consultation', consultationId] as const,
+  drugTemplates: ['prescriptions', 'drug-templates'] as const,
   analysis: (patientId: string) => ['analysis', patientId] as const,
   glucoseHistory: (patientId: string) => ['glucose', patientId, 'history'] as const,
   glucoseAnalysis: (patientId: string) => ['glucose', patientId, 'analysis'] as const,
