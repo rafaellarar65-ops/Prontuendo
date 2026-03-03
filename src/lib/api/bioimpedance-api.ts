@@ -9,6 +9,8 @@ import type {
   CreateBioimpedancePayload,
 } from '@/types/bioimpedance';
 
+export type CreateBioimpedanceDto = CreateBioimpedancePayload;
+
 const parseNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -68,7 +70,7 @@ export const mapBioimpedanceAiToFormValues = (
 export const mapBioimpedanceFormToCreatePayload = (
   patientId: string,
   form: BioimpedanceFormValues,
-): CreateBioimpedancePayload => ({
+): CreateBioimpedanceDto => ({
   patientId,
   measuredAt: form.measuredAt,
   weightKg: form.weightKg ?? null,
@@ -99,8 +101,9 @@ export const bioimpedanceApi = {
     return data;
   },
 
-  async create(dto: CreateBioimpedancePayload): Promise<BioimpedanceExam> {
-    const { data } = await http.post<BioimpedanceExam>('/bioimpedance', dto);
+  async create(dto: CreateBioimpedanceDto): Promise<BioimpedanceExam> {
+    const { patientId, ...payload } = dto;
+    const { data } = await http.post<BioimpedanceExam>(`/bioimpedance/${patientId}`, payload);
     return data;
   },
 
