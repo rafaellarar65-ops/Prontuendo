@@ -97,6 +97,12 @@ enum AuditAction {
   EXPORT
 }
 
+enum ClinicalProtocolStatus {
+  ATIVO
+  INATIVO
+  RASCUNHO
+}
+
 model User {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId        String   @db.Uuid
@@ -662,21 +668,20 @@ model Medication {
 }
 
 model ClinicalProtocol {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String   @db.Uuid
-  parentProtocolId   String?  @db.Uuid
-  name               String
-  diseaseId          String?  @db.Uuid
-  protocolType       String
-  version            Int      @default(1)
-  consensusSource    String? // IA/humano
-  recommendationJson Json
-  active             Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
-  createdBy          String?  @db.Uuid
-  updatedBy          String?  @db.Uuid
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                 @db.Uuid
+  name              String
+  description       String
+  targetCondition   String
+  version           Int                    @default(1)
+  status            ClinicalProtocolStatus
+  steps             Json
+  medications       Json
+  inclusionCriteria Json
+  references        String?
+  createdBy         String                 @db.Uuid
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 }
 
 model ClinicalScoreDefinition {

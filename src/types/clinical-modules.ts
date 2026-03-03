@@ -17,9 +17,18 @@ export interface ScorePayload {
   value: string;
 }
 
+export type ProtocolStatus = 'ATIVO' | 'INATIVO' | 'RASCUNHO';
+
 export interface ProtocolPayload {
   name: string;
-  status?: string;
+  description?: string;
+  targetCondition?: string;
+  version?: number;
+  status?: ProtocolStatus;
+  steps?: unknown;
+  medications?: unknown;
+  inclusionCriteria?: unknown;
+  references?: string | null;
 }
 
 export interface LabResult {
