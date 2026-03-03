@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
@@ -26,6 +26,24 @@ export class ConsultationsController {
   @ApiOperation({ summary: 'Listar consultas com filtros' })
   findAll(@CurrentUser() user: AuthUser, @Query() query: ListConsultationsDto) {
     return this.consultationsService.findAll(user.tenantId, query);
+  }
+
+  @Get(':id/versions')
+  @Roles('MEDICO', 'RECEPCAO')
+  @ApiOperation({ summary: 'Listar histórico de versões da consulta' })
+  getVersions(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.consultationsService.getVersions(user.tenantId, id);
+  }
+
+  @Get(':id/versions/:version')
+  @Roles('MEDICO', 'RECEPCAO')
+  @ApiOperation({ summary: 'Buscar conteúdo de uma versão específica da consulta' })
+  getVersion(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('version', ParseIntPipe) version: number,
+  ) {
+    return this.consultationsService.getVersion(user.tenantId, id, version);
   }
 
   @Patch(':id/autosave')

@@ -59,6 +59,51 @@ export class ConsultationsService {
     });
   }
 
+  async getVersions(tenantId: string, consultationId: string) {
+    const consultation = await this.prisma.consultation.findFirst({
+      where: { id: consultationId, tenantId },
+      select: { id: true },
+    });
+
+    if (!consultation) {
+      throw new NotFoundException('Consulta não encontrada');
+    }
+
+    return this.prisma.consultationVersion.findMany({
+      where: { consultationId },
+      select: {
+        version: true,
+        isFinal: true,
+        hash: true,
+        createdAt: true,
+      },
+      orderBy: { version: 'desc' },
+    });
+  }
+
+  async getVersion(tenantId: string, consultationId: string, version: number) {
+    const consultationVersion = await this.prisma.consultationVersion.findFirst({
+      where: {
+        consultationId,
+        version,
+        consultation: { tenantId },
+      },
+      select: {
+        version: true,
+        isFinal: true,
+        hash: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    if (!consultationVersion) {
+      throw new NotFoundException('Versão da consulta não encontrada');
+    }
+
+    return consultationVersion;
+  }
+
   async autosave(tenantId: string, clinicianId: string, id: string, dto: UpsertConsultationSectionDto) {
     const consultation = await this.prisma.consultation.findFirst({ where: { id, tenantId } });
     if (!consultation) {
