@@ -19,6 +19,23 @@ enum ConsultationStatus {
   FINALIZED
 }
 
+enum AppointmentType {
+  PRIMEIRA_CONSULTA
+  RETORNO
+  TELECONSULTA
+  EXAME
+  URGENCIA
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+  FALTOU
+}
+
 model Tenant {
   id               String            @id @default(cuid())
   name             String
@@ -28,6 +45,7 @@ model Tenant {
   patients         Patient[]
   activityLogs     ActivityLog[]
   consultations    Consultation[]
+  appointments     Appointment[]
   glucoseLogs      GlucoseLog[]
   labResults       LabResult[]
   bioimpedanceExams BioimpedanceExam[]
@@ -47,6 +65,7 @@ model User {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   patientLink   Patient?       @relation(fields: [patientLinkId], references: [id])
   refreshTokens RefreshToken[]
+  appointments  Appointment[]
 
   @@unique([tenantId, email])
   @@unique([id, tenantId])
@@ -71,6 +90,7 @@ model Patient {
   tenant           Tenant            @relation(fields: [tenantId], references: [id])
   portalUsers      User[]
   consultations    Consultation[]
+  appointments     Appointment[]
   glucoseLogs      GlucoseLog[]
   labResults       LabResult[]
   bioimpedanceExams BioimpedanceExam[]
@@ -78,6 +98,30 @@ model Patient {
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
   @@index([tenantId, lifecycle])
+}
+
+model Appointment {
+  id                        String            @id @default(cuid())
+  tenantId                  String
+  patientId                 String
+  clinicianId               String
+  type                      AppointmentType
+  status                    AppointmentStatus @default(AGENDADO)
+  scheduledAt               DateTime
+  durationMin               Int
+  notes                     String?
+  returnFromConsultationId  String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  tenant                    Tenant            @relation(fields: [tenantId], references: [id])
+  patient                   Patient           @relation(fields: [patientId], references: [id])
+  clinician                 User              @relation(fields: [clinicianId], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, scheduledAt])
+  @@index([tenantId, patientId, scheduledAt])
+  @@index([tenantId, clinicianId, scheduledAt])
+  @@index([tenantId, status, scheduledAt])
 }
 
 model RefreshToken {
