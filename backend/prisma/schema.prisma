@@ -19,18 +19,27 @@ enum ConsultationStatus {
   FINALIZED
 }
 
+enum PrescriptionStatus {
+  ATIVA
+  CANCELADA
+  VENCIDA
+  DISPENSADA
+}
+
 model Tenant {
-  id               String            @id @default(cuid())
-  name             String
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  users            User[]
-  patients         Patient[]
-  activityLogs     ActivityLog[]
-  consultations    Consultation[]
-  glucoseLogs      GlucoseLog[]
-  labResults       LabResult[]
+  id                String             @id @default(cuid())
+  name              String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  users             User[]
+  patients          Patient[]
+  activityLogs      ActivityLog[]
+  consultations     Consultation[]
+  glucoseLogs       GlucoseLog[]
+  labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
+  prescriptions     Prescription[]
+  drugTemplates     DrugTemplate[]
 }
 
 model User {
@@ -54,26 +63,27 @@ model User {
 }
 
 model Patient {
-  id               String            @id @default(cuid())
-  tenantId         String
-  fullName         String
-  cpf              String?
-  birthDate        DateTime?
-  sex              String?           @default("NI")
-  phone            String?
-  email            String?
-  address          String?
-  notes            String?
-  tags             String[]
-  lifecycle        String            @default("ACTIVE")
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  tenant           Tenant            @relation(fields: [tenantId], references: [id])
-  portalUsers      User[]
-  consultations    Consultation[]
-  glucoseLogs      GlucoseLog[]
-  labResults       LabResult[]
+  id                String             @id @default(cuid())
+  tenantId          String
+  fullName          String
+  cpf               String?
+  birthDate         DateTime?
+  sex               String?            @default("NI")
+  phone             String?
+  email             String?
+  address           String?
+  notes             String?
+  tags              String[]
+  lifecycle         String             @default("ACTIVE")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  portalUsers       User[]
+  consultations     Consultation[]
+  glucoseLogs       GlucoseLog[]
+  labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
+  prescriptions     Prescription[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -107,22 +117,63 @@ model ActivityLog {
 }
 
 model Consultation {
-  id          String             @id @default(cuid())
-  tenantId    String
-  patientId   String
-  clinicianId String
-  status      ConsultationStatus @default(DRAFT)
-  latestDraft Json?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  finalizedAt DateTime?
-  patient     Patient            @relation(fields: [patientId], references: [id])
-  tenant      Tenant             @relation(fields: [tenantId], references: [id])
-  versions    ConsultationVersion[]
+  id            String                @id @default(cuid())
+  tenantId      String
+  patientId     String
+  clinicianId   String
+  status        ConsultationStatus    @default(DRAFT)
+  latestDraft   Json?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  finalizedAt   DateTime?
+  patient       Patient               @relation(fields: [patientId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  versions      ConsultationVersion[]
+  prescriptions Prescription[]
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, status])
   @@index([tenantId, updatedAt])
+}
+
+model Prescription {
+  id             String             @id @default(cuid())
+  tenantId       String
+  patientId      String
+  consultationId String?
+  clinicianId    String
+  status         PrescriptionStatus @default(ATIVA)
+  issuedAt       DateTime           @default(now())
+  validUntil     DateTime?
+  items          Json
+  signature      Json?
+  pdfUrl         String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  patient        Patient            @relation(fields: [patientId], references: [id])
+  consultation   Consultation?      @relation(fields: [consultationId], references: [id])
+
+  @@index([tenantId, patientId, issuedAt])
+  @@index([tenantId, consultationId])
+}
+
+model DrugTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String
+  genericName  String
+  brandName    String?
+  class        String
+  defaultDose  String
+  defaultRoute String
+  defaultFreq  String
+  instructions String?
+  isGlobal     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, class])
 }
 
 model ConsultationVersion {
@@ -140,15 +191,15 @@ model ConsultationVersion {
 }
 
 model GlucoseLog {
-  id        String   @id @default(cuid())
-  tenantId  String
-  patientId String
-  value     Int
+  id         String   @id @default(cuid())
+  tenantId   String
+  patientId  String
+  value      Int
   measuredAt DateTime
-  notes     String?
-  createdAt DateTime @default(now())
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  patient   Patient  @relation(fields: [patientId], references: [id])
+  notes      String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  patient    Patient  @relation(fields: [patientId], references: [id])
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, measuredAt])
@@ -172,17 +223,17 @@ model LabResult {
 }
 
 model BioimpedanceExam {
-  id          String   @id @default(cuid())
-  tenantId    String
-  patientId   String
-  measuredAt  DateTime
-  weightKg    Float?
-  bodyFatPct  Float?
+  id           String   @id @default(cuid())
+  tenantId     String
+  patientId    String
+  measuredAt   DateTime
+  weightKg     Float?
+  bodyFatPct   Float?
   muscleMassKg Float?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  patient     Patient  @relation(fields: [patientId], references: [id])
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  patient      Patient  @relation(fields: [patientId], references: [id])
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, measuredAt])
