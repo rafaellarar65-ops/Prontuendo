@@ -220,12 +220,13 @@ export class ConsultationsService {
             tenantId,
             patientId: consultation.patientId,
             consultationId: id,
-            category: 'RESUMO_CLINICO',
+            category: 'LAUDO',
             fileName: pdf.fileName,
-            filePath: pdf.relativePath,
+            storageKey: pdf.storageKey,
+            fileSize: pdf.fileSize,
             mimeType: pdf.mimeType,
             isFromPortal: false,
-            createdBy: clinicianId,
+            uploadedById: clinicianId,
           },
         });
 
@@ -238,7 +239,7 @@ export class ConsultationsService {
             metadata: {
               consultationId: id,
               documentId: document.id,
-              filePath: pdf.relativePath,
+              storageKey: pdf.storageKey,
             },
           },
         });
@@ -246,7 +247,16 @@ export class ConsultationsService {
     } catch (error) {
       // Política adotada: a consulta permanece finalizada e apenas a geração do PDF é tratada como falha não-bloqueante.
       // Motivo: o processo inclui I/O de filesystem, que não participa de transação ACID do banco.
-      this.logger.error(`Falha ao gerar PDF SOAP para consulta ${id}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(
+        JSON.stringify({
+          message: 'Falha ao gerar PDF SOAP',
+          consultationId: id,
+          tenantId,
+          clinicianId,
+          error: error instanceof Error ? error.message : 'Erro desconhecido ao gerar PDF SOAP',
+        }),
+        error instanceof Error ? error.stack : undefined,
+      );
 
       await this.prisma.activityLog.create({
         data: {
