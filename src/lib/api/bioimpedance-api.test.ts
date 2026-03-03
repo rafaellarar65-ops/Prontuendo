@@ -28,7 +28,7 @@ describe('bioimpedance mapping', () => {
   });
 
   it('maps form values to create payload preserving structured metadata', () => {
-    const payload = mapBioimpedanceFormToCreatePayload('patient-1', {
+    const payload = mapBioimpedanceFormToCreatePayload({
       measuredAt: '2026-01-01T00:00:00.000Z',
       source: 'manual',
       bodyFatPct: 18,
@@ -36,10 +36,34 @@ describe('bioimpedance mapping', () => {
       originalFileName: 'manual-entry.txt',
     });
 
-    expect(payload.patientId).toBe('patient-1');
     expect(payload.metadata).toEqual({
       source: 'manual',
       originalFileName: 'manual-entry.txt',
+    });
+  });
+});
+
+
+describe('bioimpedance create', () => {
+  it('creates exam using patient scoped endpoint', async () => {
+    const postSpy = vi.spyOn(http, 'post').mockResolvedValue({
+      data: {
+        id: 'exam-1',
+        tenantId: 'tenant-1',
+        patientId: 'patient-1',
+        measuredAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    } as never);
+
+    await bioimpedanceApi.create('patient-1', {
+      measuredAt: '2026-01-01T00:00:00.000Z',
+      metadata: { source: 'manual' },
+    });
+
+    expect(postSpy).toHaveBeenCalledWith('/bioimpedance/patient-1', {
+      measuredAt: '2026-01-01T00:00:00.000Z',
+      metadata: { source: 'manual' },
     });
   });
 });
