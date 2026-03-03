@@ -24,7 +24,8 @@ def auth_token():
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
         headers={"x-tenant-id": TENANT_ID, "Content-Type": "application/json"}
     )
-    assert response.status_code == 200, f"Login failed: {response.text}"
+    # Login returns 201 on success
+    assert response.status_code in [200, 201], f"Login failed: {response.text}"
     data = response.json()
     assert "accessToken" in data
     return data["accessToken"]
