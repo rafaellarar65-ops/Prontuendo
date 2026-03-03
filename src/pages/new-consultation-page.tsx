@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { consultationApi, ConsultationDraft } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
-import { aiApi } from '@/lib/api/ai-api';
 import { useProtocolsByConditionQuery } from '@/features/protocols/use-protocols-query';
 import type { Patient } from '@/types/api';
+import { AiAssistantPanel } from '@/components/domain/ai-assistant-panel';
 
 
 const CONDITIONS = {
@@ -180,95 +180,6 @@ const SoapSection = ({
     />
   </div>
 );
-
-// ── AI Panel ─────────────────────────────────────────────────────
-const AiPanel = ({
-  patient,
-  draft,
-}: {
-  patient: Patient | null;
-  draft: ConsultationDraft;
-}) => {
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const run = async () => {
-    if (!patient) return;
-    setLoading(true);
-    setError('');
-    try {
-      const r = await aiApi.assistConsultation({
-        patient: { name: patient.fullName, age: patient.birthDate ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / 3.156e10) : null },
-        queixas: draft.subjetivo ?? '',
-        historico: draft.objetivo ?? '',
-        avaliacao: draft.avaliacao ?? '',
-      });
-      setResult(r as Record<string, unknown>);
-    } catch {
-      setError('Erro ao chamar assistente IA. Verifique a chave Gemini.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <aside className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Bot size={18} className="text-indigo-600" />
-        <h2 className="font-semibold text-slate-800">Assistente IA</h2>
-      </div>
-      <p className="text-xs text-slate-500">
-        Análise de hipóteses diagnósticas e plano de investigação baseados no conteúdo da consulta.
-      </p>
-      <button
-        type="button"
-        onClick={run}
-        disabled={loading || !patient}
-        className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
-        {loading ? 'Analisando...' : 'Analisar com IA'}
-      </button>
-      {!patient && <p className="text-xs text-amber-600">Selecione um paciente para usar o assistente.</p>}
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
-      {result && !loading && (
-        <div className="space-y-3 text-xs">
-          {(result as any).clinicalSummary && (
-            <div>
-              <p className="font-semibold text-slate-700 mb-1">Resumo clínico</p>
-              <p className="text-slate-600 leading-relaxed">{(result as any).clinicalSummary}</p>
-            </div>
-          )}
-          {(result as any).differentialDiagnoses?.length > 0 && (
-            <div>
-              <p className="font-semibold text-slate-700 mb-1">Hipóteses diagnósticas</p>
-              <ul className="space-y-1">
-                {(result as any).differentialDiagnoses.slice(0, 3).map((d: any, i: number) => (
-                  <li key={i} className="rounded-lg bg-indigo-50 px-2 py-1.5">
-                    <p className="font-medium text-indigo-800">{d.hypothesis}</p>
-                    <p className="text-indigo-600">{d.clinicalRationale}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {(result as any).redFlags?.length > 0 && (
-            <div>
-              <p className="font-semibold text-rose-600 mb-1">Alertas</p>
-              <ul className="space-y-0.5">
-                {(result as any).redFlags.map((f: string, i: number) => (
-                  <li key={i} className="text-rose-600">• {f}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <p className="text-slate-400 italic leading-relaxed">{(result as any).safety?.disclaimer}</p>
-        </div>
-      )}
-    </aside>
-  );
-};
 
 // ── Main Page ─────────────────────────────────────────────────────
 export const NewConsultationPage = () => {
@@ -487,7 +398,7 @@ export const NewConsultationPage = () => {
         </div>
 
         {/* AI Panel */}
-        <AiPanel patient={patient} draft={draft} />
+        <AiAssistantPanel patient={patient} />
       </div>
     </div>
   );
