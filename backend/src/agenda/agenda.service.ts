@@ -2,11 +2,15 @@ import { randomUUID } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 
+import { PrismaService } from '../prisma/prisma.service';
+
 type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
 
 @Injectable()
 export class AgendaService {
   private readonly store: Item[] = [];
+
+  constructor(private readonly prisma: PrismaService) {}
 
   list(tenantId: string) {
     return this.store.filter((item) => item.tenantId === tenantId);
