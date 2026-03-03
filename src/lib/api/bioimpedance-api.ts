@@ -17,6 +17,14 @@ export interface BioimpedanceExam {
   createdAt: string;
 }
 
+export interface CreateBioimpedanceDto {
+  measuredAt: string;
+  weightKg?: number | null;
+  bodyFatPct?: number | null;
+  muscleMassKg?: number | null;
+  metadata?: Record<string, unknown> | null;
+}
+
 export const bioimpedanceApi = {
   async list(patientId: string): Promise<BioimpedanceExam[]> {
     const { data } = await http.get<BioimpedanceExam[]>('/bioimpedance', {
@@ -25,10 +33,8 @@ export const bioimpedanceApi = {
     return data;
   },
 
-  async create(
-    dto: Omit<BioimpedanceExam, 'id' | 'tenantId' | 'createdAt'>,
-  ): Promise<BioimpedanceExam> {
-    const { data } = await http.post<BioimpedanceExam>('/bioimpedance', dto);
+  async create(patientId: string, dto: CreateBioimpedanceDto): Promise<BioimpedanceExam> {
+    const { data } = await http.post<BioimpedanceExam>(`/bioimpedance/${patientId}`, dto);
     return data;
   },
 
