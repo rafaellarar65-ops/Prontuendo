@@ -1,8 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
-import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
+import { UploadDocumentDto } from './dto/upload-document.dto';
 import { DocumentsService } from './documents.service';
 
 @ApiTags('documents')
@@ -11,40 +24,44 @@ import { DocumentsService } from './documents.service';
 export class DocumentsController {
   constructor(private readonly service: DocumentsService) {}
 
-  @Get()
-  @ApiOperation({ summary: 'Listar registros do módulo' })
-  list(@CurrentUser() user: AuthUser) {
-    return this.service.list(user.tenantId);
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload de documento' })
+  upload(
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() file: { originalname: string; mimetype: string; path?: string; buffer?: Buffer },
+    @Body() dto: UploadDocumentDto,
+  ) {
+    return this.service.upload(user.tenantId, user.sub, file, dto);
   }
 
-  @Post()
-  @ApiOperation({ summary: 'Criar registro do módulo' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.create(user.tenantId, user.sub, dto.payload);
+  @Get('patient/:patientId')
+  @ApiOperation({ summary: 'Listar documentos do paciente' })
+  listByPatient(
+    @CurrentUser() user: AuthUser,
+    @Param('patientId') patientId: string,
+    @Query('category') category?: string,
+  ) {
+    return this.service.listByPatient(user.tenantId, patientId, category);
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: 'Atualizar registro do módulo' })
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.update(user.tenantId, id, dto.payload);
+  @Get(':id')
+  @ApiOperation({ summary: 'Buscar documento por ID' })
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.findOne(user.tenantId, id);
+  }
+
+  @Get(':id/download')
+  @ApiOperation({ summary: 'Download de documento' })
+  async download(@CurrentUser() user: AuthUser, @Param('id') id: string, @Res() res: Response) {
+    const file = await this.service.getDownloadInfo(user.tenantId, id);
+    res.sendFile(file.absolutePath);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Remover registro do módulo' })
+  @ApiOperation({ summary: 'Remover documento' })
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.remove(user.tenantId, id);
   }
-
-  @Post(':id/sign')
-  @ApiOperation({ summary: 'Assinar documento digitalmente' })
-  sign(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('sign', user.tenantId, user.sub, { id, ...dto.payload });
-  }
-
-  @Post(':id/send-email')
-  @ApiOperation({ summary: 'Enviar documento por email' })
-  sendEmail(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('send-email', user.tenantId, user.sub, { id, ...dto.payload });
-  }
-
 }

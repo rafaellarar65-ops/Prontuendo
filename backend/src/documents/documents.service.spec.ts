@@ -3,16 +3,29 @@ import { Test } from '@nestjs/testing';
 import { DocumentsService } from './documents.service';
 
 describe('DocumentsService', () => {
-  it('deve criar e listar por tenant', async () => {
+  it('deve filtrar por paciente e categoria', async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [DocumentsService],
     }).compile();
 
     const service = moduleRef.get(DocumentsService);
-    service.create('t1', 'u1', { nome: 'x' });
-    service.create('t2', 'u2', { nome: 'y' });
+    const file = {
+      originalname: 'arquivo.txt',
+      mimetype: 'text/plain',
+      buffer: Buffer.from('conteudo'),
+    };
 
-    expect(service.list('t1')).toHaveLength(1);
-    expect(service.list('t2')).toHaveLength(1);
+    const primeiro = await service.upload('t1', 'u1', file, {
+      patientId: '11111111-1111-1111-1111-111111111111',
+      category: 'lab',
+    });
+
+    await service.upload('t1', 'u1', file, {
+      patientId: '11111111-1111-1111-1111-111111111111',
+      category: 'image',
+    });
+
+    expect(service.listByPatient('t1', primeiro.patientId)).toHaveLength(2);
+    expect(service.listByPatient('t1', primeiro.patientId, 'lab')).toHaveLength(1);
   });
 });
