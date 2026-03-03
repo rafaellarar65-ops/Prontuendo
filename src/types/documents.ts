@@ -14,6 +14,8 @@ export interface Document {
   size: number;
   category: DocumentCategory;
   description?: string | null;
+  isFromPortal?: boolean;
+  sharedWithPatient?: boolean;
   uploadedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -24,4 +26,5 @@ export interface UploadDocumentDto {
   patientId: string;
   category: DocumentCategory;
   description?: string;
+  isFromPortal?: boolean;
 }
