@@ -13,6 +13,9 @@ export const queryKeys = {
   templateBuilderVariables: ['template-builder', 'variables'] as const,
   clinics: ['clinics'] as const,
   scores: ['scores'] as const,
+  scoresHistory: (patientId: string, scoreType?: string) =>
+    ['scores', 'history', patientId, scoreType ?? 'all'] as const,
+  scoresLatest: (patientId: string) => ['scores', 'latest', patientId] as const,
   protocols: ['protocols'] as const,
   glucose: (patientId: string) => ['glucose', patientId] as const,
   labResults: (patientId: string) => ['lab-results', patientId] as const,
