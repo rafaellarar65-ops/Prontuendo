@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, Calendar, ChevronRight, Edit2, FileText, Loader2,
-  Phone, Mail, MapPin, Plus, Stethoscope, User, X,
+  Activity, Calendar, ChevronRight, Download, Edit2, File, FileImage, FileText, Loader2,
+  Phone, Mail, MapPin, Plus, Stethoscope, Upload, User, X,
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';
@@ -16,10 +16,14 @@ import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
 import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
 import { aiApi } from '@/lib/api/ai-api';
+import { documentsApi } from '@/lib/api/documents-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
+import type { Document, DocumentCategory } from '@/types/documents';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
+import { useDocumentsQuery } from '@/features/documents/use-documents-query';
+import { useUploadDocumentMutation } from '@/features/documents/use-upload-document-mutation';
 
 const calcAge = (bd?: string) =>
   bd ? Math.floor((Date.now() - new Date(bd).getTime()) / 3.156e10) : null;
@@ -709,6 +713,233 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
   );
 };
 
+const DOCUMENT_CATEGORIES: DocumentCategory[] = ['EXAME', 'RECEITA', 'ATESTADO', 'RELATORIO', 'OUTRO'];
+
+const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
+  EXAME: 'Exame',
+  RECEITA: 'Receita',
+  ATESTADO: 'Atestado',
+  RELATORIO: 'Relatório',
+  OUTRO: 'Outro',
+};
+
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const isImageMimeType = (mimeType: string) => mimeType.startsWith('image/');
+const isPdfMimeType = (mimeType: string) => mimeType === 'application/pdf';
+
+const getDocumentIcon = (mimeType: string) => {
+  if (isPdfMimeType(mimeType)) return <FileText size={16} className="text-rose-500" />;
+  if (isImageMimeType(mimeType)) return <FileImage size={16} className="text-indigo-500" />;
+  return <File size={16} className="text-slate-500" />;
+};
+
+const DocumentsTab = ({ patientId }: { patientId: string }) => {
+  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'all'>('all');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [uploadForm, setUploadForm] = useState<{ file: File | null; category: DocumentCategory; description: string }>({
+    file: null,
+    category: 'EXAME',
+    description: '',
+  });
+
+  const { data: documents, isLoading } = useDocumentsQuery(patientId, selectedCategory === 'all' ? undefined : selectedCategory);
+  const uploadMutation = useUploadDocumentMutation();
+
+  useEffect(() => {
+    if (!selectedDocument) return;
+
+    let isActive = true;
+    let createdUrl: string | null = null;
+
+    const loadPreview = async () => {
+      try {
+        const blob = await documentsApi.download(selectedDocument.id);
+        if (!isActive) return;
+        createdUrl = URL.createObjectURL(blob);
+        setPreviewUrl(createdUrl);
+      } catch {
+        if (isActive) {
+          setPreviewUrl(null);
+        }
+      }
+    };
+
+    setPreviewUrl(null);
+    void loadPreview();
+
+    return () => {
+      isActive = false;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [selectedDocument]);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadForm.file) return;
+
+    await uploadMutation.mutateAsync({
+      file: uploadForm.file,
+      patientId,
+      category: uploadForm.category,
+      ...(uploadForm.description.trim() ? { description: uploadForm.description.trim() } : {}),
+    });
+
+    setUploadForm({ file: null, category: 'EXAME', description: '' });
+    setShowUploadModal(false);
+  };
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      setDownloadingId(doc.id);
+      const blob = await documentsApi.download(doc.id);
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = doc.fileName;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(blobUrl);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-slate-500">{documents?.length ?? 0} documento(s)</p>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value as DocumentCategory | 'all')}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="all">Todas as categorias</option>
+            {DOCUMENT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{DOCUMENT_CATEGORY_LABEL[category]}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setShowUploadModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+            <Upload size={13} /> Upload
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div> : (
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+          <ul className="space-y-2">
+            {(documents ?? []).map((doc) => {
+              const isFromPortal = Boolean((doc as Document & { isFromPortal?: boolean }).isFromPortal);
+              const isSelected = selectedDocument?.id === doc.id;
+
+              return (
+                <li key={doc.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDocument(doc)}
+                    className={`w-full rounded-xl border p-3 text-left transition ${isSelected ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                          {getDocumentIcon(doc.mimeType)}
+                          <span className="truncate">{doc.fileName}</span>
+                        </p>
+                        <p className="text-xs text-slate-500">{DOCUMENT_CATEGORY_LABEL[doc.category]} · {formatFileSize(doc.size)}</p>
+                        <p className="text-xs text-slate-400">{new Date(doc.uploadedAt).toLocaleString('pt-BR')}</p>
+                        {doc.description && <p className="text-xs text-slate-500">{doc.description}</p>}
+                        {isFromPortal && <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Enviado pelo paciente</span>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDownload(doc);
+                        }}
+                        disabled={downloadingId === doc.id}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {downloadingId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                        Download
+                      </button>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            {(!documents || !documents.length) && <li className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">Nenhum documento encontrado para este filtro.</li>}
+          </ul>
+
+          <div className="rounded-xl border border-slate-200 p-3">
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">Pré-visualização</h3>
+            {!selectedDocument && <p className="text-sm text-slate-400">Selecione um documento para visualizar.</p>}
+            {selectedDocument && !previewUrl && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>}
+            {selectedDocument && previewUrl && (
+              <div className="space-y-2">
+                <p className="truncate text-xs text-slate-500">{selectedDocument.fileName}</p>
+                {isImageMimeType(selectedDocument.mimeType) && (
+                  <img src={previewUrl} alt={selectedDocument.fileName} className="max-h-[420px] w-full rounded-lg border border-slate-200 object-contain" />
+                )}
+                {isPdfMimeType(selectedDocument.mimeType) && (
+                  <iframe src={previewUrl} title={selectedDocument.fileName} className="h-[420px] w-full rounded-lg border border-slate-200" />
+                )}
+                {!isImageMimeType(selectedDocument.mimeType) && !isPdfMimeType(selectedDocument.mimeType) && (
+                  <p className="text-sm text-slate-500">Não há preview inline para este tipo de arquivo. Use o botão de download.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={(e) => { void handleUpload(e); }} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Enviar documento</h3>
+            <input
+              required
+              type="file"
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <select
+              value={uploadForm.category}
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, category: e.target.value as DocumentCategory }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            >
+              {DOCUMENT_CATEGORIES.map((category) => (
+                <option key={category} value={category}>{DOCUMENT_CATEGORY_LABEL[category]}</option>
+              ))}
+            </select>
+            <textarea
+              placeholder="Descrição (opcional)"
+              value={uploadForm.description}
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, description: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowUploadModal(false)} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button type="submit" disabled={!uploadForm.file || uploadMutation.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {uploadMutation.isPending && <Loader2 size={14} className="animate-spin" />} Enviar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
 type Tab = 'dados' | 'consultas' | 'exames' | 'glicemia' | 'bioimpedancia' | 'documentos';
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
@@ -897,12 +1128,7 @@ export const PatientProfilePage = () => {
         {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} patient={data} />}
 
 
-        {tab === 'documentos' && (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <FileText size={32} className="mb-2 opacity-30" />
-            <p className="text-sm">Documentos e arquivos aparecerão aqui.</p>
-          </div>
-        )}
+        {tab === 'documentos' && <DocumentsTab patientId={patientId!} />}
       </div>
 
       {showEdit && <EditPatientModal patient={data} onClose={() => setShowEdit(false)} />}
