@@ -17,7 +17,7 @@ import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioim
 import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
 import { aiApi } from '@/lib/api/ai-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
-import type { BioimpedancePoint } from '@/types/bioimpedance';
+import type { BioimpedanceMetadata, BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
@@ -342,6 +342,14 @@ const GlucoseTab = ({ patientId }: { patientId: string }) => {
 const ACCEPTED_BIO_FILE_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
 type BioFieldSource = 'manual' | 'ia';
+type BioimpedanceMetadataState = BioimpedanceMetadata & {
+  segmentedFields: Record<string, BioFieldSource>;
+};
+
+const defaultBioimpedanceMetadata = (): BioimpedanceMetadataState => ({
+  source: 'manual',
+  segmentedFields: {},
+});
 
 type BioimpedanceFormState = {
   measuredAt: string;
@@ -359,11 +367,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<Record<string, unknown>>({
-    source: 'manual',
-    originalFile: null,
-    fieldsSource: {},
-  });
+  const [metadata, setMetadata] = useState<BioimpedanceMetadataState>(defaultBioimpedanceMetadata);
   const [form, setForm] = useState<BioimpedanceFormState>({
     measuredAt: new Date().toISOString().slice(0, 10),
     bodyFatPct: '',
@@ -378,7 +382,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
       setShowModal(false);
       setFileError(null);
       setSelectedFileName(null);
-      setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
+      setMetadata(defaultBioimpedanceMetadata());
       setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
     },
   });
@@ -413,11 +417,23 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         muscleMassKg: muscle,
         weightKg: weight,
       }));
-      setMetadata((prev) => ({
-        ...prev,
-        source: 'ia',
-        fieldsSource,
-      }));
+      setMetadata((prev) => {
+        const nextMetadata: BioimpedanceMetadataState = {
+          ...prev,
+          source: 'ia',
+          segmentedFields: fieldsSource,
+        };
+
+        if (typeof (result as Record<string, unknown>)?.originalFileName === 'string') {
+          nextMetadata.originalFileName = String((result as Record<string, unknown>)?.originalFileName);
+        }
+
+        if (typeof (result as Record<string, unknown>)?.originalFileUrl === 'string') {
+          nextMetadata.originalFileUrl = String((result as Record<string, unknown>)?.originalFileUrl);
+        }
+
+        return nextMetadata;
+      });
     },
     onError: () => {
       setFileError('Não foi possível extrair os dados do exame com IA.');
@@ -426,13 +442,18 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   const setField = (name: keyof BioimpedanceFormState, value: string) => {
     setForm((prev) => ({ ...prev, [name]: value }));
-    setMetadata((prev) => ({
-      ...prev,
-      fieldsSource: {
-        ...(typeof prev.fieldsSource === 'object' && prev.fieldsSource !== null ? prev.fieldsSource as Record<string, BioFieldSource> : {}),
+    setMetadata((prev) => {
+      const segmentedFields: Record<string, BioFieldSource> = {
+        ...prev.segmentedFields,
         [name]: 'manual',
-      },
-    }));
+      };
+      const source: BioFieldSource = Object.values(segmentedFields).some((fieldSource) => fieldSource === 'ia') ? 'ia' : 'manual';
+      return {
+        ...prev,
+        source,
+        segmentedFields,
+      };
+    });
   };
 
   const readFileAsTextPayload = (file: File) => new Promise<string>((resolve, reject) => {
@@ -442,11 +463,8 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         reject(new Error('Formato inválido de arquivo.'));
         return;
       }
-      if (file.type === 'application/pdf') {
-        resolve(reader.result.split(',')[1] ?? reader.result);
-        return;
-      }
-      resolve(reader.result);
+      const base64Content = reader.result.split(',')[1] ?? reader.result;
+      resolve(base64Content);
     };
     reader.onerror = () => reject(new Error('Falha ao ler arquivo.'));
     reader.readAsDataURL(file);
@@ -462,10 +480,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
     setSelectedFileName(file.name);
     setMetadata((prev) => ({
       ...prev,
-      originalFile: {
-        name: file.name,
-        type: file.type,
-      },
+      originalFileName: file.name,
     }));
 
     try {
@@ -478,7 +493,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
-  const fieldsSource = (metadata.fieldsSource as Record<string, BioFieldSource> | undefined) ?? {};
+  const fieldsSource = metadata.segmentedFields ?? {};
 
   return (
     <div className="space-y-3">
