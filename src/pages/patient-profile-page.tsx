@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, Calendar, ChevronRight, Edit2, FileText, Loader2,
+  Activity, Calendar, ChevronRight, Download, Edit2, Eye, File, FileArchive, FileImage, FileSpreadsheet, FileText, Loader2,
   Phone, Mail, MapPin, Plus, Stethoscope, User, X,
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
@@ -14,8 +14,11 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
+import { useDocumentsQuery } from '@/features/documents/use-documents-query';
+import { useUploadDocumentMutation } from '@/features/documents/use-upload-document-mutation';
 import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
 import { aiApi } from '@/lib/api/ai-api';
+import { documentsApi, type PatientDocument } from '@/lib/api/documents-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
@@ -581,6 +584,257 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   );
 };
 
+
+
+const DOCUMENT_CATEGORIES = ['Receita', 'Exame', 'Laudo', 'Atestado', 'Outros'] as const;
+
+const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() ?? '';
+
+const getDocumentKind = (doc: PatientDocument) => {
+  const mimeType = (doc.mimeType ?? '').toLowerCase();
+  const extension = getFileExtension(doc.fileName);
+
+  if (mimeType.includes('pdf') || extension === 'pdf') return 'pdf';
+  if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) return 'image';
+  if (mimeType.includes('sheet') || ['xls', 'xlsx', 'csv'].includes(extension)) return 'spreadsheet';
+  if (mimeType.includes('zip') || ['zip', 'rar', '7z'].includes(extension)) return 'archive';
+
+  return 'file';
+};
+
+const getDocumentIcon = (doc: PatientDocument) => {
+  const kind = getDocumentKind(doc);
+
+  if (kind === 'pdf') return <FileText size={16} className="text-rose-500" />;
+  if (kind === 'image') return <FileImage size={16} className="text-emerald-500" />;
+  if (kind === 'spreadsheet') return <FileSpreadsheet size={16} className="text-green-600" />;
+  if (kind === 'archive') return <FileArchive size={16} className="text-amber-500" />;
+
+  return <File size={16} className="text-slate-500" />;
+};
+
+const DocumentsTab = ({ patientId }: { patientId: string }) => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadCategory, setUploadCategory] = useState<string>(DOCUMENT_CATEGORIES[0]);
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+
+  const { data: documents, isLoading, isError, error } = useDocumentsQuery(patientId, selectedCategory || undefined);
+  const uploadMutation = useUploadDocumentMutation();
+
+  const activeDocument = documents?.find((doc) => doc.id === activeDocumentId) ?? null;
+
+  const closeModal = () => {
+    setShowUploadModal(false);
+    setUploadFile(null);
+    setUploadCategory(DOCUMENT_CATEGORIES[0]);
+    setUploadDescription('');
+  };
+
+  const handleUploadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) return;
+
+    uploadMutation.mutate({
+      patientId,
+      file: uploadFile,
+      category: uploadCategory,
+      ...(uploadDescription.trim() ? { description: uploadDescription.trim() } : {}),
+    }, {
+      onSuccess: () => {
+        closeModal();
+      },
+    });
+  };
+
+  const handleDownload = async (doc: PatientDocument) => {
+    const blob = await documentsApi.download(doc.id);
+    const blobUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = blobUrl;
+    anchor.download = doc.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  const renderPreview = (doc: PatientDocument) => {
+    const kind = getDocumentKind(doc);
+    const downloadUrl = `/documents/${doc.id}/download`;
+
+    if (kind === 'pdf') {
+      return <iframe title={`Preview de ${doc.fileName}`} src={downloadUrl} className="h-[420px] w-full rounded-lg border border-slate-200" />;
+    }
+
+    if (kind === 'image') {
+      return <img src={downloadUrl} alt={doc.fileName} className="max-h-[420px] w-full rounded-lg border border-slate-200 object-contain" />;
+    }
+
+    return (
+      <p className="text-sm text-slate-500">
+        Preview indisponível para esse tipo de arquivo. Use o download para abrir o documento.
+      </p>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-500" htmlFor="documents-category-filter">Categoria:</label>
+          <select
+            id="documents-category-filter"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+          >
+            <option value="">Todas</option>
+            {DOCUMENT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowUploadModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+        >
+          <Plus size={13} /> Upload
+        </button>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>}
+
+      {isError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          Erro ao carregar documentos: {error instanceof Error ? error.message : 'tente novamente.'}
+        </div>
+      )}
+
+      {!isLoading && !isError && (!documents || documents.length === 0) && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-12 text-slate-400">
+          <FileText size={32} className="mb-2 opacity-30" />
+          <p className="text-sm">Nenhum documento encontrado para essa categoria.</p>
+        </div>
+      )}
+
+      {!isLoading && !isError && !!documents?.length && (
+        <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+          <ul className="space-y-2">
+            {documents.map((doc) => (
+              <li key={doc.id}>
+                <button
+                  type="button"
+                  onClick={() => setActiveDocumentId(doc.id)}
+                  className={`w-full rounded-xl border px-3 py-2 text-left transition ${activeDocumentId === doc.id ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {getDocumentIcon(doc)}
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{doc.fileName}</p>
+                        <p className="text-xs text-slate-500">{doc.category ?? 'Sem categoria'}</p>
+                      </div>
+                    </div>
+                    {doc.isFromPortal && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Portal</span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-xl border border-slate-200 p-4">
+            {activeDocument ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{activeDocument.fileName}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(activeDocument.createdAt).toLocaleDateString('pt-BR')}
+                      {activeDocument.description ? ` • ${activeDocument.description}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownload(activeDocument)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download size={13} /> Download
+                  </button>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 p-2">
+                  <div className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500"><Eye size={12} /> Preview</div>
+                  {renderPreview(activeDocument)}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Selecione um documento para visualizar o preview.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={handleUploadSubmit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Upload de documento</h3>
+
+            <label className="block text-sm text-slate-700">
+              Arquivo
+              <input
+                required
+                type="file"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+
+            <label className="block text-sm text-slate-700">
+              Categoria
+              <select
+                required
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              >
+                {DOCUMENT_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-sm text-slate-700">
+              Descrição (opcional)
+              <textarea
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
+            </label>
+
+            {uploadMutation.isError && <p className="text-sm text-rose-600">Falha no upload. Tente novamente.</p>}
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={closeModal} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button disabled={!uploadFile || uploadMutation.isPending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {uploadMutation.isPending ? 'Enviando...' : 'Enviar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
 type Tab = 'dados' | 'consultas' | 'exames' | 'glicemia' | 'bioimpedancia' | 'documentos';
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
@@ -769,12 +1023,7 @@ export const PatientProfilePage = () => {
         {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} />}
 
 
-        {tab === 'documentos' && (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <FileText size={32} className="mb-2 opacity-30" />
-            <p className="text-sm">Documentos e arquivos aparecerão aqui.</p>
-          </div>
-        )}
+        {tab === 'documentos' && <DocumentsTab patientId={patientId!} />}
       </div>
 
       {showEdit && <EditPatientModal patient={data} onClose={() => setShowEdit(false)} />}

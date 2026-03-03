@@ -29,4 +29,6 @@ export const queryKeys = {
   glucoseAnalysis: (patientId: string) => ['glucose', patientId, 'analysis'] as const,
   labResultsHistory: (patientId: string, examName?: string) =>
     ['lab-results', patientId, examName ?? 'all'] as const,
+  documents: (patientId: string, category?: string) =>
+    ['documents', patientId, category ?? 'all'] as const,
 };
