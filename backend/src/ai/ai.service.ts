@@ -4,6 +4,7 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { ClinicalContextService } from './clinical-context.service';
 import { consultationAssistantPrompt } from './prompts/consultation-assistant';
 import { labExtractionPrompt } from './prompts/lab-extraction';
 import { bioimpedanceExtractionPrompt } from './prompts/bioimpedance-extraction';
@@ -13,6 +14,24 @@ import { protocolConsensusPrompt } from './prompts/protocol-consensus';
 
 const MODEL = 'gemini-2.5-flash';
 
+export interface AssistConsultationPayload {
+  patientId: string;
+  soap?: {
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+  };
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+  subjetivo?: string;
+  objetivo?: string;
+  avaliacao?: string;
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -21,6 +40,7 @@ export class AiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly clinicalContextService: ClinicalContextService,
   ) {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (apiKey) {
@@ -62,10 +82,60 @@ export class AiService {
     return this.callGemini(systemPrompt, userContent);
   }
 
+  private resolveSoap(payload: AssistConsultationPayload) {
+    return {
+      subjective:
+        payload.soap?.subjective ??
+        payload.subjective ??
+        payload.subjetivo ??
+        '',
+      objective:
+        payload.soap?.objective ??
+        payload.objective ??
+        payload.objetivo ??
+        '',
+      assessment:
+        payload.soap?.assessment ??
+        payload.assessment ??
+        payload.avaliacao ??
+        '',
+      plan: payload.soap?.plan ?? payload.plan ?? '',
+    };
+  }
+
   // 1. Assistente de Consulta
-  async assistConsultation(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('assist-consultation', tenantId, actorId, payload, consultationAssistantPrompt, userContent);
+  async assistConsultation(tenantId: string, actorId: string, payload: AssistConsultationPayload) {
+    const soap = this.resolveSoap(payload);
+    const clinicalContext = await this.clinicalContextService.getSummary(tenantId, payload.patientId);
+
+    const userContent = [`soap:`, JSON.stringify(soap), '', `clinicalContext:`, JSON.stringify(clinicalContext)].join('\n');
+
+    await this.prisma.activityLog.create({
+      data: {
+        tenantId,
+        actorId,
+        action: 'AI_CALL',
+        resource: 'assist-consultation',
+        metadata: {
+          patientId: payload.patientId,
+          hasSoap: Object.values(soap).some((section) => section.trim().length > 0),
+          soapSectionLengths: {
+            subjective: soap.subjective.length,
+            objective: soap.objective.length,
+            assessment: soap.assessment.length,
+            plan: soap.plan.length,
+          },
+          clinicalContextCounts: {
+            consultations: clinicalContext.consultations.length,
+            labResults: clinicalContext.labResults.length,
+            glucoseLogs: clinicalContext.glucoseLogs.length,
+            prescriptions: clinicalContext.prescriptions.length,
+          },
+        } as any,
+      },
+    });
+
+    return this.callGemini(consultationAssistantPrompt, userContent);
   }
 
   // 2. Extração de Exames Laboratoriais

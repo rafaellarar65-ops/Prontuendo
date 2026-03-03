@@ -1,7 +1,18 @@
 import { http } from '@/lib/api/http';
 
+export interface AssistConsultationPayload {
+  patientId: string;
+  soap: {
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+  };
+  [key: string]: unknown;
+}
+
 export const aiApi = {
-  async assistConsultation(payload: Record<string, unknown>) {
+  async assistConsultation(payload: AssistConsultationPayload) {
     const { data } = await http.post('/ai/assist-consultation', payload);
     return data;
   },

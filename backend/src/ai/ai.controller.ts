@@ -1,10 +1,10 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { AiService } from './ai.service';
+import { AiService, AssistConsultationPayload } from './ai.service';
 
 @ApiTags('ai')
 @ApiBearerAuth()
@@ -16,7 +16,11 @@ export class AiController {
   @Roles('MEDICO')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Assistente clínico durante consulta (Gemini)' })
-  assistConsultation(@CurrentUser() user: AuthUser, @Body() payload: Record<string, unknown>) {
+  assistConsultation(@CurrentUser() user: AuthUser, @Body() payload: AssistConsultationPayload) {
+    if (!payload.patientId || typeof payload.patientId !== 'string' || payload.patientId.trim().length === 0) {
+      throw new BadRequestException('Informe o patientId para usar o assistente de consulta.');
+    }
+
     return this.aiService.assistConsultation(user.tenantId, user.sub, payload);
   }
 

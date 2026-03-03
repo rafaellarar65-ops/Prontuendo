@@ -199,10 +199,13 @@ const AiPanel = ({
     setError('');
     try {
       const r = await aiApi.assistConsultation({
-        patient: { name: patient.fullName, age: patient.birthDate ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / 3.156e10) : null },
-        queixas: draft.subjetivo ?? '',
-        historico: draft.objetivo ?? '',
-        avaliacao: draft.avaliacao ?? '',
+        patientId: patient.id,
+        soap: {
+          subjective: draft.subjetivo ?? '',
+          objective: draft.objetivo ?? '',
+          assessment: draft.avaliacao ?? '',
+          plan: draft.plano ?? '',
+        },
       });
       setResult(r as Record<string, unknown>);
     } catch {
