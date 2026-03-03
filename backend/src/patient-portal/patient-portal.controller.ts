@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -53,12 +54,24 @@ export class PatientPortalController {
   @Post(':patientId/upload-exam')
   @Roles('PATIENT')
   @ApiOperation({ summary: 'Upload de exames pelo portal' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
   uploadExam(
     @CurrentUser() user: AuthUser,
     @Param('patientId') patientId: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
     @Body() payload: Record<string, unknown>,
   ) {
-    return this.patientPortalService.uploadExam(user.tenantId, patientId, user.patientId, user.sub, payload);
+    return this.patientPortalService.uploadExam(user.tenantId, patientId, user.patientId, user.sub, file, payload);
   }
 
   @Post(':patientId/questionnaire')

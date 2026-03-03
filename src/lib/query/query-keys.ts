@@ -25,6 +25,7 @@ export const queryKeys = {
     ['prescriptions', 'consultation', consultationId] as const,
   drugTemplates: ['prescriptions', 'drug-templates'] as const,
   analysis: (patientId: string) => ['analysis', patientId] as const,
+  patientPortalDocuments: (patientId: string) => ['patient-portal', 'documents', patientId] as const,
   glucoseHistory: (patientId: string) => ['glucose', patientId, 'history'] as const,
   glucoseAnalysis: (patientId: string) => ['glucose', patientId, 'analysis'] as const,
   labResultsHistory: (patientId: string, examName?: string) =>

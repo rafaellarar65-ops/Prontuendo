@@ -77,16 +77,61 @@ export class PatientPortalService {
       WHERE "tenantId" = ${tenantId} 
         AND "resource" = 'documents'
         AND "metadata"->>'patientId' = ${patientId}
+        AND "metadata"->>'sharedWithPatient' = 'true'
       ORDER BY "createdAt" DESC
     `;
   }
 
-  async uploadExam(tenantId: string, patientId: string, authPatientId: string | undefined, actorId: string, payload: Record<string, unknown>) {
+  async uploadExam(
+    tenantId: string,
+    patientId: string,
+    authPatientId: string | undefined,
+    actorId: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    payload: Record<string, unknown>,
+  ) {
     this.ensurePatientScope(patientId, authPatientId);
+
+    if (!file) {
+      return { status: 'error', message: 'Arquivo não enviado' };
+    }
+
+    const fileContentBase64 = file.buffer.toString('base64');
+
+    const created = await this.prisma.activityLog.create({
+      data: {
+        tenantId,
+        actorId,
+        action: 'UPLOAD_EXAM',
+        resource: 'documents',
+        metadata: {
+          patientId,
+          name: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          fileContentBase64,
+          fileUrl: `data:${file.mimetype};base64,${fileContentBase64}`,
+          sharedWithPatient: true,
+          isFromPortal: true,
+          ...payload,
+        } as any,
+      },
+    });
+
     await this.prisma.activityLog.create({
       data: { tenantId, actorId, action: 'UPLOAD_EXAM', resource: 'patient-portal', metadata: { patientId, ...payload } as any },
     });
-    return { status: 'received', patientId };
+
+    return {
+      id: created.id,
+      status: 'received',
+      patientId,
+      name: file.originalname,
+      date: created.createdAt,
+      fileUrl: `data:${file.mimetype};base64,${fileContentBase64}`,
+      isFromPortal: true,
+      sharedWithPatient: true,
+    };
   }
 
   async submitQuestionnaire(
