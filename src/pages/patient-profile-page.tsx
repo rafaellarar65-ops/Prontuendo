@@ -605,7 +605,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
               basalMetabolicRateKcal: form.basalMetabolicRateKcal ? Number(form.basalMetabolicRateKcal) : null,
               bmi: form.imc ? Number(form.imc) : null,
               metadata: {
-                ...metadata,
+                source: (metadata.source as string) === 'ia' ? 'ia' as const : 'manual' as const,
                 segmentedFields: {
                   ...((metadata.segmentedFields as Record<string, unknown> | undefined) ?? {}),
                   boneMassKg: form.boneMassKg ? Number(form.boneMassKg) : null,

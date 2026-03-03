@@ -7,18 +7,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 
 
-declare global {
-  namespace Express {
-    namespace Multer {
-      interface File {
-        originalname: string;
-        mimetype: string;
-        size: number;
-        buffer?: Buffer;
-        path?: string;
-      }
-    }
-  }
+interface UploadedFile {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer?: Buffer;
+  path?: string;
 }
 
 export type DocumentUploadMetadata = {
@@ -62,7 +56,7 @@ export class DocumentsService {
     }
   }
 
-  private validateUploadFile(file: Express.Multer.File) {
+  private validateUploadFile(file: UploadedFile) {
     if (!file) {
       throw new BadRequestException('Arquivo é obrigatório');
     }
@@ -76,7 +70,7 @@ export class DocumentsService {
     }
   }
 
-  private async persistFile(absoluteTargetPath: string, file: Express.Multer.File) {
+  private async persistFile(absoluteTargetPath: string, file: UploadedFile) {
     if (file.buffer && file.buffer.length) {
       await writeFile(absoluteTargetPath, file.buffer);
       return;
@@ -90,7 +84,7 @@ export class DocumentsService {
     throw new BadRequestException('Arquivo inválido para upload');
   }
 
-  async upload(tenantId: string, metadata: DocumentUploadMetadata, file: Express.Multer.File) {
+  async upload(tenantId: string, metadata: DocumentUploadMetadata, file: UploadedFile) {
     this.validateUploadFile(file);
 
     await this.ensureTenantExists(tenantId);

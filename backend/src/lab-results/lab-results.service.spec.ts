@@ -13,7 +13,7 @@ describe('LabResultsService', () => {
     }).compile();
 
     const service = moduleRef.get(LabResultsService);
-    await service.history('t1', 'p1');
+    await service.findByPatient('t1', 'p1');
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: 't1' }) }));
   });
