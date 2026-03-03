@@ -23,6 +23,7 @@ import { ProfilePage } from '@/pages/patient/profile-page';
 import { QuestionnairePage } from '@/pages/patient/questionnaire-page';
 import { ProtocolsPage } from '@/pages/protocolos/protocols-page';
 import { TemplatesPage } from '@/pages/templates/templates-page';
+import { PrescriptionsPage } from '@/pages/prescricoes/prescriptions-page';
 
 export const medicalRouter = createBrowserRouter([
   { path: '/app', element: <Navigate to="/" replace /> },
@@ -48,6 +49,7 @@ export const medicalRouter = createBrowserRouter([
           { path: 'exames', element: <ExamsPage /> },
           { path: 'protocolos', element: <ProtocolsPage /> },
           { path: 'templates', element: <TemplatesPage /> },
+          { path: 'prescricoes', element: <PrescriptionsPage /> },
           { path: 'templates/builder', element: <TemplateBuilderPage /> },
         ],
       },
