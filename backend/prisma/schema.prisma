@@ -238,3 +238,19 @@ model BioimpedanceExam {
   @@unique([id, tenantId])
   @@index([tenantId, patientId, measuredAt])
 }
+
+model ClinicalScore {
+  id           String   @id @default(cuid())
+  tenantId     String
+  clinicianId  String
+  patientId    String
+  scoreType    String
+  inputs       Json
+  result       Json
+  calculatedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, patientId, scoreType, calculatedAt])
+  @@index([tenantId, calculatedAt])
+}
