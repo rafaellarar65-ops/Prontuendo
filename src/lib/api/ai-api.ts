@@ -10,7 +10,10 @@ export const aiApi = {
     return data;
   },
   async extractBioimpedance(text: string) {
-    const { data } = await http.post('/ai/extract-bioimpedance', { text });
+    const { data } = await http.post('/ai/proxy', {
+      operation: 'extract-bioimpedance',
+      payload: { text },
+    });
     return data;
   },
   async patientEvolution(payload: Record<string, unknown>) {
