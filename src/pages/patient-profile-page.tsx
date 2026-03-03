@@ -13,6 +13,9 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
+import { useActivePrescriptionsQuery } from '@/features/prescriptions/use-active-prescriptions-query';
+import { useRenewPrescriptionMutation } from '@/features/prescriptions/use-renew-prescription-mutation';
+import { prescriptionApi, type PrescriptionStatus } from '@/lib/api/prescription-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
@@ -348,7 +351,107 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   );
 };
 
-type Tab = 'dados' | 'consultas' | 'exames' | 'glicemia' | 'bioimpedancia' | 'documentos';
+
+
+const PRESCRIPTION_STATUS_STYLES: Record<PrescriptionStatus, { label: string; cls: string }> = {
+  ATIVA: { label: 'ATIVA', cls: 'bg-emerald-100 text-emerald-700' },
+  VENCIDA: { label: 'VENCIDA', cls: 'bg-amber-100 text-amber-700' },
+  CANCELADA: { label: 'CANCELADA', cls: 'bg-rose-100 text-rose-700' },
+};
+
+const PrescriptionsTab = ({ patientId }: { patientId: string }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState('');
+  const [medications, setMedications] = useState([{ name: '', dose: '', frequency: '' }]);
+  const qc = useQueryClient();
+  const { data, isLoading } = useActivePrescriptionsQuery(patientId);
+  const { mutate: renewPrescription, isPending: isRenewing } = useRenewPrescriptionMutation(patientId);
+
+  const createPrescription = useMutation({
+    mutationFn: () => prescriptionApi.create({
+      patientId,
+      date: new Date(date).toISOString(),
+      medications: medications.filter((m) => m.name.trim() && m.dose.trim() && m.frequency.trim()),
+      ...(notes.trim() ? { notes } : {}),
+    }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['prescriptions', patientId, 'active'] });
+      setShowModal(false);
+      setDate(new Date().toISOString().slice(0, 10));
+      setNotes('');
+      setMedications([{ name: '', dose: '', frequency: '' }]);
+    },
+  });
+
+  const updateMedication = (index: number, field: 'name' | 'dose' | 'frequency', value: string) => {
+    setMedications((prev) => prev.map((medication, i) => (i === index ? { ...medication, [field]: value } : medication)));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">{data?.length ?? 0} prescrição(ões)</p>
+        <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"><Plus size={13} /> Nova Prescrição</button>
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div> : (
+        <div className="space-y-3">
+          {(data ?? []).map((prescription) => {
+            const status = PRESCRIPTION_STATUS_STYLES[prescription.status] ?? PRESCRIPTION_STATUS_STYLES.CANCELADA;
+            return (
+              <article key={prescription.id} className="rounded-xl border border-slate-100 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-700">{new Date(prescription.date).toLocaleDateString('pt-BR')}</p>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.cls}`}>{status.label}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {prescription.medications.map((medication) => (
+                    <li key={medication.id} className="text-sm text-slate-700">
+                      <span className="font-medium">{medication.name}</span> · {medication.dose} · {medication.frequency}
+                    </li>
+                  ))}
+                </ul>
+                {prescription.notes && <p className="mt-2 text-xs text-slate-500">{prescription.notes}</p>}
+                <div className="mt-3 flex justify-end">
+                  <button type="button" disabled={isRenewing} onClick={() => renewPrescription(prescription.id)} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60">Renovar</button>
+                </div>
+              </article>
+            );
+          })}
+          {(!data || !data.length) && <p className="py-4 text-center text-sm text-slate-400">Nenhuma prescrição ativa.</p>}
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={(e) => { e.preventDefault(); createPrescription.mutate(); }} className="w-full max-w-lg space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Nova Prescrição</h3>
+            <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+
+            {medications.map((medication, idx) => (
+              <div key={idx} className="grid grid-cols-3 gap-2">
+                <input required placeholder="Medicamento" value={medication.name} onChange={(e) => updateMedication(idx, 'name', e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <input required placeholder="Dose" value={medication.dose} onChange={(e) => updateMedication(idx, 'dose', e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <input required placeholder="Frequência" value={medication.frequency} onChange={(e) => updateMedication(idx, 'frequency', e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+            ))}
+
+            <button type="button" onClick={() => setMedications((prev) => [...prev, { name: '', dose: '', frequency: '' }])} className="text-xs font-medium text-indigo-700 hover:text-indigo-800">+ Adicionar medicamento</button>
+            <textarea placeholder="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button disabled={createPrescription.isPending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">Salvar</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+type Tab = 'dados' | 'consultas' | 'exames' | 'glicemia' | 'bioimpedancia' | 'prescricoes' | 'documentos';
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
   { id: 'dados', label: 'Dados', icon: <User size={14} /> },
@@ -356,6 +459,7 @@ const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
   { id: 'exames', label: 'Exames', icon: <FileText size={14} /> },
   { id: 'glicemia', label: 'Glicemia', icon: <Activity size={14} /> },
   { id: 'bioimpedancia', label: 'Bioimpedância', icon: <Calendar size={14} /> },
+  { id: 'prescricoes', label: 'Prescrições', icon: <FileText size={14} /> },
   { id: 'documentos', label: 'Documentos', icon: <FileText size={14} /> },
 ];
 
@@ -486,6 +590,7 @@ export const PatientProfilePage = () => {
 
         {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} />}
 
+        {tab === 'prescricoes' && <PrescriptionsTab patientId={patientId!} />}
 
         {tab === 'documentos' && (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400">
