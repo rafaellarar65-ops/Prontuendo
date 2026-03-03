@@ -26,6 +26,21 @@ enum PrescriptionStatus {
   DISPENSADA
 }
 
+enum AppointmentType {
+  PRIMEIRA_CONSULTA
+  RETORNO
+  TELECONSULTA
+  EXAME
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
 model Tenant {
   id                String             @id @default(cuid())
   name              String
@@ -41,6 +56,7 @@ model Tenant {
   prescriptions     Prescription[]
   drugTemplates     DrugTemplate[]
   clinicalScores    ClinicalScore[]
+  appointments      Appointment[]
 }
 
 model User {
@@ -86,6 +102,7 @@ model Patient {
   bioimpedanceExams BioimpedanceExam[]
   prescriptions     Prescription[]
   clinicalScores    ClinicalScore[]
+  appointments      Appointment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -255,4 +272,23 @@ model BioimpedanceExam {
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, measuredAt])
+}
+
+model Appointment {
+  id         String            @id @default(cuid())
+  tenantId   String
+  patientId  String
+  date       DateTime
+  time       String
+  type       AppointmentType
+  status     AppointmentStatus @default(AGENDADO)
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  patient    Patient           @relation(fields: [patientId], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, date, time])
+  @@index([tenantId, patientId, date])
 }
