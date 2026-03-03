@@ -58,6 +58,7 @@ model Tenant {
   drugTemplates     DrugTemplate[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
+  documents         Document[]
 }
 
 model User {
@@ -104,6 +105,7 @@ model Patient {
   prescriptions     Prescription[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
+  documents         Document[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -166,10 +168,33 @@ model Consultation {
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   versions      ConsultationVersion[]
   prescriptions Prescription[]
+  documents     Document[]
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, status])
   @@index([tenantId, updatedAt])
+}
+
+model Document {
+  id             String        @id @default(cuid())
+  tenantId       String
+  patientId      String
+  consultationId String?
+  category       String
+  fileName       String
+  filePath       String
+  mimeType       String
+  isFromPortal   Boolean       @default(false)
+  createdBy      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, patientId, createdAt])
+  @@index([tenantId, consultationId])
+  @@index([tenantId, category])
 }
 
 model Prescription {
