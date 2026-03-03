@@ -1,6 +1,6 @@
 import { http } from '@/lib/api/http';
 
-export type ScoreType = 'imc' | 'chads2vasc' | 'hasbled';
+export type ScoreType = 'imc' | 'chads2vasc' | 'hasbled' | 'homa_ir' | 'findrisc' | 'bmr' | 'ckd_epi' | (string & {});
 
 export interface ImcScoreInput {
   weightKg: number;
@@ -35,7 +35,7 @@ export interface ClinicalScoreInputByType {
   hasbled: HasBledScoreInput;
 }
 
-export type ClinicalScoreInput<TType extends ScoreType = ScoreType> = ClinicalScoreInputByType[TType];
+export type ClinicalScoreInput<TType extends ScoreType = ScoreType> = TType extends keyof ClinicalScoreInputByType ? ClinicalScoreInputByType[TType] : Record<string, string | number | boolean>;
 
 export interface ClinicalScoreResult<TType extends ScoreType = ScoreType> {
   patientId: string;
@@ -95,12 +95,6 @@ export const scoresApi = {
     return data;
   },
 
-  async latest(patientId: string): Promise<ClinicalScoreHistoryRecord | null> {
-    const { data } = await http.get<ClinicalScoreHistoryRecord | null>('/scores/latest', {
-      params: { patientId },
-    });
-    return data;
-  },
   async latest(patientId: string): Promise<LatestScoresPayload> {
     const { data } = await http.get<LatestScoresPayload>('/scores/latest', {
       params: { patientId },
