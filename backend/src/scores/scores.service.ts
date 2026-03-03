@@ -2,45 +2,72 @@ import { randomUUID } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+import { CalculateScoreDto } from './dto/calculate-score.dto';
+import { ListScoresDto } from './dto/list-scores.dto';
+
+type Score = {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  scoreType: string;
+  clinicianId: string;
+  parameters: Record<string, unknown>;
+  result: number;
+  createdAt: string;
+};
 
 @Injectable()
 export class ScoresService {
-  private readonly store: Item[] = [];
+  private readonly store: Score[] = [];
 
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
-  }
+  calculate(tenantId: string, clinicianId: string, dto: CalculateScoreDto) {
+    const score = this.computeScore(dto.parameters);
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
+    const item: Score = {
+      id: randomUUID(),
+      tenantId,
+      patientId: dto.patientId,
+      scoreType: dto.scoreType,
+      clinicianId,
+      parameters: dto.parameters,
+      result: score,
+      createdAt: new Date().toISOString(),
+    };
+
     this.store.push(item);
     return item;
   }
 
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (!item) {
-      return null;
-    }
+  list(tenantId: string, clinicianId: string, filters: ListScoresDto) {
+    return this.store.filter((item) => {
+      if (item.tenantId !== tenantId) {
+        return false;
+      }
 
-    item.payload = { ...item.payload, ...payload };
-    item.updatedAt = new Date().toISOString();
-    return item;
+      if (filters.patientId && item.patientId !== filters.patientId) {
+        return false;
+      }
+
+      if (filters.scoreType && item.scoreType !== filters.scoreType) {
+        return false;
+      }
+
+      return item.clinicianId === clinicianId;
+    });
   }
 
-  remove(tenantId: string, id: string) {
-    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (index < 0) {
-      return { deleted: false };
-    }
-
-    this.store.splice(index, 1);
-    return { deleted: true };
+  latest(tenantId: string, clinicianId: string, patientId: string) {
+    const entries = this.list(tenantId, clinicianId, { patientId });
+    return entries[entries.length - 1] ?? null;
   }
 
-  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
+  private computeScore(parameters: Record<string, unknown>): number {
+    return Object.values(parameters).reduce<number>((acc, value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return acc + value;
+      }
+
+      return acc;
+    }, 0);
   }
 }
