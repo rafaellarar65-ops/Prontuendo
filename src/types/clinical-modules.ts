@@ -17,9 +17,29 @@ export interface ScorePayload {
   value: string;
 }
 
+export interface ProtocolStep {
+  title: string;
+  description: string;
+  order: number;
+}
+
+export interface ProtocolMedication {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  route?: string;
+}
+
 export interface ProtocolPayload {
   name: string;
+  description?: string;
+  targetCondition?: string;
   status?: string;
+  version?: string;
+  inclusionCriteria?: string[];
+  references?: string[];
+  steps?: ProtocolStep[];
+  medications?: ProtocolMedication[];
 }
 
 export interface LabResult {
