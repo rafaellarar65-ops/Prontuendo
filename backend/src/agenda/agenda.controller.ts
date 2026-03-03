@@ -20,7 +20,7 @@ export class AgendaController {
   @Post()
   @ApiOperation({ summary: 'Criar registro do módulo' })
   create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.create(user.tenantId, user.sub, dto.payload);
+    return this.service.create(user.tenantId, { ...dto.payload, actorId: user.sub });
   }
 
   @Patch(':id')
