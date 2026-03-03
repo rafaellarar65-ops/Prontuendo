@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';
-import { scoresApi } from '@/lib/api/scores-api';
+import { scoresApi, type ScoreType } from '@/lib/api/scores-api';
 import { useLabResultsQuery } from '@/features/lab-results/use-lab-results-query';
 import { useCreateLabResultMutation } from '@/features/lab-results/use-create-lab-result-mutation';
 import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis-query';
@@ -604,31 +604,35 @@ export const PatientProfilePage = () => {
     enabled: !!patientId,
   });
 
-  const { data: latestScores } = useQuery({
-    queryKey: ['scores', 'latest', patientId],
-    queryFn: () => scoresApi.latest(patientId!),
+  const { data: latestScoresByType } = useQuery({
+    queryKey: ['scores', 'latest-by-type', patientId],
+    queryFn: () => scoresApi.latestByType(patientId!),
     enabled: !!patientId,
   });
 
-  const formatMetric = (value?: string | number | null, interpretation?: string | null) => ({
-    value: value === null || value === undefined || value === '' ? '—' : String(value),
-    interpretation: interpretation && interpretation.trim() ? interpretation : '—',
-  });
+  const SCORE_LABEL: Record<ScoreType, string> = {
+    imc: 'IMC',
+    chads2vasc: 'CHA₂DS₂-VASc',
+    hasbled: 'HAS-BLED',
+  };
 
-  const calculatedIndexes = [
-    {
-      label: 'HOMA-IR',
-      ...formatMetric(latestScores?.homaIr?.value, latestScores?.homaIr?.interpretation),
-    },
-    {
-      label: 'IMC',
-      ...formatMetric(latestScores?.imc?.value, latestScores?.imc?.interpretation),
-    },
-    {
-      label: 'HbA1c estimada',
-      ...formatMetric(latestScores?.estimatedHba1c?.value, latestScores?.estimatedHba1c?.interpretation),
-    },
-  ];
+  const scoreCards = (latestScoresByType ?? []).map((item) => {
+    const neverCalculated = !item.calculatedAt;
+    const hasEnoughData = item.hasEnoughData ?? !neverCalculated;
+
+    return {
+      scoreType: item.scoreType,
+      label: SCORE_LABEL[item.scoreType] ?? item.scoreType.toUpperCase(),
+      value: item.value === null || item.value === undefined || item.value === '' ? '—' : String(item.value),
+      classification: item.classification?.trim() ? item.classification : '—',
+      calculatedAt: item.calculatedAt,
+      emptyMessage: neverCalculated
+        ? 'Este escore ainda não foi calculado para este paciente.'
+        : !hasEnoughData
+          ? item.message?.trim() || 'Dados insuficientes para calcular este escore no momento.'
+          : null,
+    };
+  });
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-24">
@@ -738,7 +742,7 @@ export const PatientProfilePage = () => {
 
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-700">Índices Calculados</h3>
+                <h3 className="text-sm font-semibold text-slate-700">Escores Clínicos</h3>
                 <button
                   type="button"
                   onClick={() => navigate(`/escores?patientId=${data.id}`)}
@@ -748,13 +752,24 @@ export const PatientProfilePage = () => {
                 </button>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                {calculatedIndexes.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-slate-100 p-3">
+                {scoreCards.map((item) => (
+                  <div key={item.scoreType} className="rounded-xl border border-slate-100 p-3">
                     <p className="text-xs text-slate-500">{item.label}</p>
                     <p className="text-base font-semibold text-slate-700">{item.value}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.interpretation}</p>
+                    <p className="mt-1 text-xs text-slate-500">Classificação: {item.classification}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Data do cálculo: {item.calculatedAt ? new Date(item.calculatedAt).toLocaleDateString('pt-BR') : 'Nunca calculado'}
+                    </p>
+                    {item.emptyMessage && (
+                      <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-700">{item.emptyMessage}</p>
+                    )}
                   </div>
                 ))}
+                {!scoreCards.length && (
+                  <div className="rounded-xl border border-slate-100 p-3 md:col-span-3">
+                    <p className="text-sm text-slate-500">Nenhum escore clínico disponível para este paciente até o momento.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
