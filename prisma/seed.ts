@@ -52,6 +52,171 @@ async function main() {
     },
   })
 
+  const clinicalProtocols = [
+    {
+      name: 'Protocolo DM2 - Escalonamento Terapêutico',
+      targetCondition: 'Diabetes mellitus tipo 2',
+      inclusionCriteria: [
+        'Diagnóstico confirmado de DM2.',
+        'Adulto em seguimento ambulatorial sem descompensação aguda.',
+        'Necessidade de intensificação terapêutica após medidas de estilo de vida.',
+      ],
+      steps: [
+        {
+          order: 1,
+          title: 'Primeira linha com metformina',
+          summary: 'Iniciar metformina e titular conforme tolerância gastrointestinal e função renal.',
+        },
+        {
+          order: 2,
+          title: 'Escalonar para SGLT2i ou GLP-1 RA',
+          summary: 'Associar SGLT2i/GLP-1 RA em controle inadequado ou presença de risco cardiorrenal.',
+        },
+        {
+          order: 3,
+          title: 'Insulina basal',
+          summary: 'Introduzir insulina basal se meta glicêmica não atingida com terapia combinada.',
+        },
+      ],
+      medications: ['Metformina', 'Empagliflozina', 'Dapagliflozina', 'Semaglutida', 'Insulina glargina'],
+      references: ['ADA Standards of Care 2024', 'SBD Diretrizes de Diabetes 2024'],
+    },
+    {
+      name: 'Protocolo Hipotireoidismo Primário',
+      targetCondition: 'Hipotireoidismo primário',
+      inclusionCriteria: [
+        'TSH elevado com T4 livre baixo ou inapropriadamente normal.',
+        'Ausência de contraindicação ao uso de levotiroxina.',
+      ],
+      steps: [
+        {
+          order: 1,
+          title: 'Dose inicial por peso',
+          summary: 'Iniciar levotiroxina com dose aproximada de 1,6 mcg/kg/dia (ajustes por idade/comorbidades).',
+        },
+        {
+          order: 2,
+          title: 'Ajuste por TSH',
+          summary: 'Reavaliar TSH em 6-8 semanas e ajustar dose em pequenos incrementos.',
+        },
+      ],
+      medications: ['Levotiroxina'],
+      references: ['ATA Guidelines for Hypothyroidism 2014 (updates)', 'SBEM Diretrizes de Tireoide'],
+    },
+    {
+      name: 'Protocolo Obesidade - Manejo Progressivo',
+      targetCondition: 'Obesidade e sobrepeso com comorbidades',
+      inclusionCriteria: [
+        'IMC >= 30 kg/m², ou IMC >= 27 kg/m² com comorbidades associadas.',
+        'Disponibilidade para seguimento multiprofissional e metas pactuadas.',
+      ],
+      steps: [
+        {
+          order: 1,
+          title: 'Elegibilidade por IMC/comorbidades',
+          summary: 'Classificar gravidade com base em IMC e impacto clínico-metabólico.',
+        },
+        {
+          order: 2,
+          title: 'Intervenção em estilo de vida',
+          summary: 'Implementar plano alimentar, atividade física e suporte comportamental estruturado.',
+        },
+        {
+          order: 3,
+          title: 'Farmacoterapia antiobesidade',
+          summary: 'Considerar medicação quando resposta ao estilo de vida for insuficiente.',
+        },
+        {
+          order: 4,
+          title: 'Avaliação para cirurgia bariátrica',
+          summary: 'Indicar em casos elegíveis com risco/benefício favorável e avaliação multidisciplinar.',
+        },
+      ],
+      medications: ['Semaglutida', 'Liraglutida', 'Orlistate'],
+      references: ['ABESO Diretrizes Brasileiras de Obesidade', 'AACE/ACE Obesity Guidelines'],
+    },
+    {
+      name: 'Protocolo Osteoporose - Prevenção de Fraturas',
+      targetCondition: 'Osteoporose pós-menopausa e risco elevado de fratura',
+      inclusionCriteria: [
+        'Fratura por fragilidade prévia ou risco elevado calculado por FRAX.',
+        'Densitometria compatível com osteoporose ou osteopenia de alto risco.',
+      ],
+      steps: [
+        {
+          order: 1,
+          title: 'Estratificação por FRAX/fratura prévia',
+          summary: 'Definir risco de fratura maior e de quadril para orientar intensidade terapêutica.',
+        },
+        {
+          order: 2,
+          title: 'Suporte com vitamina D e cálcio',
+          summary: 'Garantir aporte adequado de vitamina D e cálcio, com reforço de prevenção de quedas.',
+        },
+        {
+          order: 3,
+          title: 'Bisfosfonato como primeira escolha',
+          summary: 'Iniciar bisfosfonato em pacientes de risco alto sem contraindicação.',
+        },
+        {
+          order: 4,
+          title: 'Escalonar para denosumabe',
+          summary: 'Considerar denosumabe quando falha, intolerância ou contraindicação ao bisfosfonato.',
+        },
+      ],
+      medications: ['Alendronato', 'Risedronato', 'Denosumabe', 'Colecalciferol', 'Carbonato de cálcio'],
+      references: ['NOGG Guideline 2024', 'Endocrine Society Osteoporosis Guideline'],
+    },
+  ]
+
+  for (const protocol of clinicalProtocols) {
+    const existingProtocol = await prisma.clinicalProtocol.findFirst({
+      where: {
+        tenantId,
+        name: protocol.name,
+        version: 1,
+      },
+    })
+
+    const recommendationJson = {
+      targetCondition: protocol.targetCondition,
+      status: 'PUBLISHED',
+      version: 1,
+      inclusionCriteria: protocol.inclusionCriteria,
+      steps: protocol.steps,
+      medications: protocol.medications,
+      references: protocol.references,
+    }
+
+    if (existingProtocol) {
+      await prisma.clinicalProtocol.update({
+        where: { id: existingProtocol.id },
+        data: {
+          protocolType: 'ENDOCRINOLOGY',
+          consensusSource: 'humano',
+          active: true,
+          recommendationJson,
+          updatedBy: doctor.id,
+        },
+      })
+      continue
+    }
+
+    await prisma.clinicalProtocol.create({
+      data: {
+        tenantId,
+        name: protocol.name,
+        protocolType: 'ENDOCRINOLOGY',
+        version: 1,
+        consensusSource: 'humano',
+        recommendationJson,
+        active: true,
+        createdBy: doctor.id,
+        updatedBy: doctor.id,
+      },
+    })
+  }
+
   const clinic = await prisma.clinic.create({
     data: {
       tenantId,
