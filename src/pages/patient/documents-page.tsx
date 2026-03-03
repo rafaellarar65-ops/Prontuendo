@@ -1,8 +1,9 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { patientPortalApi, type PatientPortalDocument } from '@/lib/api/patient-portal-api';
+import { documentsApi } from '@/lib/api/documents-api';
 import { queryKeys } from '@/lib/query/query-keys';
 import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
+import type { Document, DocumentCategory } from '@/types/documents';
 
 const formatDate = (isoDate: string) => {
   const date = new Date(isoDate);
@@ -13,58 +14,128 @@ const formatDate = (isoDate: string) => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
+const CATEGORIES: Array<{ value: DocumentCategory; label: string }> = [
+  { value: 'EXAME', label: 'Exame' },
+  { value: 'RECEITA', label: 'Receita' },
+  { value: 'ATESTADO', label: 'Atestado' },
+  { value: 'RELATORIO', label: 'Relatório' },
+  { value: 'OUTRO', label: 'Outro' },
+];
+
+const getOriginBadge = (doc: Document) => {
+  if (doc.isFromPortal) {
+    return {
+      label: 'Enviado pelo portal',
+      className: 'border-blue-200 bg-blue-50 text-blue-700',
+    };
+  }
+
+  return {
+    label: 'Compartilhado pela clínica',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+};
+
+const downloadDocument = async (doc: Document) => {
+  const blob = await documentsApi.download(doc.id);
+  const url = URL.createObjectURL(blob);
+
+  const anchor = window.document.createElement('a');
+  anchor.href = url;
+  anchor.download = doc.fileName;
+  anchor.click();
+
+  URL.revokeObjectURL(url);
+};
+
 export const DocumentsPage = () => {
   const patient = usePatientAuthStore((state) => state.patient);
   const patientId = patient?.patientId;
   const qc = useQueryClient();
 
   const [feedback, setFeedback] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [category, setCategory] = useState<DocumentCategory>('EXAME');
+  const [description, setDescription] = useState('');
 
   const documentsQuery = useQuery({
-    queryKey: queryKeys.patientPortalDocuments(patientId ?? 'unknown'),
-    queryFn: () => patientPortalApi.listDocuments(patientId!),
+    queryKey: queryKeys.documentsByPatient(patientId ?? 'unknown', 'patient-visible'),
+    queryFn: () => documentsApi.listByPatient(patientId!, { sharedWithPatient: true }),
     enabled: Boolean(patientId),
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => patientPortalApi.uploadExam(patientId!, file),
+    mutationFn: () => {
+      if (!selectedFile || !patientId) {
+        throw new Error('Arquivo ou paciente ausente');
+      }
+
+      const payload = {
+        file: selectedFile,
+        patientId,
+        category,
+        isFromPortal: true,
+        ...(description.trim() ? { description: description.trim() } : {}),
+      };
+
+      return documentsApi.upload(payload);
+    },
     onSuccess: async () => {
       setFeedback('Documento enviado com sucesso.');
-      await qc.invalidateQueries({ queryKey: queryKeys.patientPortalDocuments(patientId ?? 'unknown') });
+      setSelectedFile(null);
+      setDescription('');
+      await qc.invalidateQueries({ queryKey: queryKeys.documentsByPatient(patientId ?? 'unknown', 'patient-visible') });
     },
     onError: () => {
       setFeedback('Falha ao enviar documento. Tente novamente.');
     },
   });
 
-  const onUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !patientId) {
+  const onFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+  };
+
+  const onUpload = async () => {
+    if (!selectedFile || !patientId) {
+      setFeedback('Selecione um arquivo para enviar.');
       return;
     }
 
     setFeedback('');
-    await uploadMutation.mutateAsync(file);
-    event.target.value = '';
+    await uploadMutation.mutateAsync();
   };
 
-  const onShare = async (doc: PatientPortalDocument) => {
+  const onShare = async (doc: Document) => {
     if (!navigator.share) {
       setFeedback('Seu celular não suporta compartilhamento direto.');
       return;
     }
 
     try {
-      await navigator.share({
-        title: doc.name,
-        text: `Documento: ${doc.name}`,
-        url: doc.fileUrl,
-      });
-      setFeedback(`Documento "${doc.name}" compartilhado.`);
+      const blob = await documentsApi.download(doc.id);
+      const file = new File([blob], doc.fileName, { type: doc.mimeType || blob.type || 'application/octet-stream' });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: doc.fileName,
+          text: `Documento: ${doc.fileName}`,
+          files: [file],
+        });
+      } else {
+        await navigator.share({
+          title: doc.fileName,
+          text: `Documento: ${doc.fileName}`,
+        });
+      }
+
+      setFeedback(`Documento "${doc.fileName}" compartilhado.`);
     } catch {
       setFeedback('Compartilhamento cancelado.');
     }
   };
+
+  const docs = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
 
   if (!patientId) {
     return (
@@ -74,52 +145,96 @@ export const DocumentsPage = () => {
     );
   }
 
-  const docs = documentsQuery.data ?? [];
-
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold text-slate-900">Meus documentos</h1>
 
-      <div className="rounded-xl border-2 border-slate-300 bg-white p-4">
+      <div className="space-y-3 rounded-xl border-2 border-slate-300 bg-white p-4">
         <label htmlFor="patient-doc-upload" className="block text-sm font-semibold text-slate-900">
           Enviar exame/documento
         </label>
+
         <input
           id="patient-doc-upload"
           type="file"
           accept="image/*,.pdf"
-          onChange={onUpload}
+          onChange={onFileSelect}
           disabled={uploadMutation.isPending}
-          className="mt-2 h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-800 file:px-3 file:py-2 file:text-white disabled:opacity-60"
+          className="h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-800 file:px-3 file:py-2 file:text-white disabled:opacity-60"
         />
+
+        <label className="block text-sm font-semibold text-slate-900">
+          Categoria
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value as DocumentCategory)}
+            className="mt-2 h-12 w-full rounded-xl border-2 border-slate-400 bg-white px-3 text-sm"
+            disabled={uploadMutation.isPending}
+          >
+            {CATEGORIES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-sm font-semibold text-slate-900">
+          Descrição (opcional)
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Ex.: Exame de sangue de rotina"
+            disabled={uploadMutation.isPending}
+            rows={3}
+            className="mt-2 w-full rounded-xl border-2 border-slate-400 px-3 py-2 text-sm"
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={onUpload}
+          disabled={uploadMutation.isPending || !selectedFile}
+          className="h-12 w-full rounded-xl border-2 border-blue-800 bg-blue-800 px-4 text-base font-semibold text-white disabled:opacity-60"
+        >
+          {uploadMutation.isPending ? 'Enviando...' : 'Enviar documento'}
+        </button>
       </div>
 
       {documentsQuery.isLoading && <p className="text-sm text-slate-700">Carregando documentos...</p>}
       {documentsQuery.isError && <p className="text-sm text-red-700">Não foi possível carregar os documentos.</p>}
 
       <ul className="space-y-2">
-        {docs.map((doc) => (
-          <li key={doc.id} className="rounded-xl border-2 border-slate-300 bg-white p-4">
-            <p className="text-base font-bold text-slate-900">{doc.name}</p>
-            <p className="text-sm text-slate-700">Emitido em {formatDate(doc.date)}</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <a
-                href={doc.fileUrl}
-                className="flex h-12 items-center justify-center rounded-xl border-2 border-blue-800 px-4 text-base font-semibold text-blue-900"
-                download={doc.name}
-              >
-                Baixar arquivo
-              </a>
-              <button
-                type="button"
-                onClick={() => onShare(doc)}
-                className="h-12 rounded-xl border-2 border-slate-500 px-4 text-base font-semibold text-slate-800"
-              >
-                Compartilhar
-              </button>
-            </div>
-          </li>
-        ))}
+        {docs.map((doc) => {
+          const badge = getOriginBadge(doc);
+
+          return (
+            <li key={doc.id} className="rounded-xl border-2 border-slate-300 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-base font-bold text-slate-900">{doc.fileName}</p>
+                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+              </div>
+              <p className="text-sm text-slate-700">Enviado em {formatDate(doc.uploadedAt || doc.createdAt)}</p>
+              {doc.description ? <p className="mt-1 text-sm text-slate-600">{doc.description}</p> : null}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadDocument(doc)}
+                  className="flex h-12 items-center justify-center rounded-xl border-2 border-blue-800 px-4 text-base font-semibold text-blue-900"
+                >
+                  Baixar arquivo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShare(doc)}
+                  className="h-12 rounded-xl border-2 border-slate-500 px-4 text-base font-semibold text-slate-800"
+                >
+                  Compartilhar
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       {!documentsQuery.isLoading && !docs.length && (
