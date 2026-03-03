@@ -14,7 +14,7 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
-import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
+import { useCreateBioimpedanceMutation } from '@/features/bioimpedance/use-create-bioimpedance-mutation';
 import { aiApi } from '@/lib/api/ai-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
@@ -351,7 +351,6 @@ type BioimpedanceFormState = {
 };
 
 const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
-  const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
@@ -371,17 +370,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
     weightKg: '',
   });
 
-  const createMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof bioimpedanceApi.create>[0]) => bioimpedanceApi.create(payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['bioimpedance', 'evolution', patientId] });
-      setShowModal(false);
-      setFileError(null);
-      setSelectedFileName(null);
-      setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
-      setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
-    },
-  });
+  const createMutation = useCreateBioimpedanceMutation();
 
   const extractMutation = useMutation({
     mutationFn: (text: string) => aiApi.extractBioimpedance(text),
@@ -503,13 +492,28 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl" onSubmit={(e) => {
             e.preventDefault();
+            const originalFile = (metadata.originalFile as { name?: string } | null) ?? null;
+
             createMutation.mutate({
               patientId,
-              measuredAt: new Date(`${form.measuredAt}T00:00:00`).toISOString(),
-              bodyFatPct: Number(form.bodyFatPct) || 0,
-              muscleMassKg: Number(form.muscleMassKg) || 0,
-              weightKg: form.weightKg ? Number(form.weightKg) : null,
-              metadata,
+              dto: {
+                measuredAt: new Date(`${form.measuredAt}T00:00:00`).toISOString(),
+                bodyFatPct: Number(form.bodyFatPct) || 0,
+                muscleMassKg: Number(form.muscleMassKg) || 0,
+                weightKg: form.weightKg ? Number(form.weightKg) : null,
+                metadata: {
+                  source: metadata.source === 'ia' ? 'ia' : 'manual',
+                  ...(originalFile?.name ? { originalFileName: originalFile.name } : {}),
+                },
+              },
+            }, {
+              onSuccess: () => {
+                setShowModal(false);
+                setFileError(null);
+                setSelectedFileName(null);
+                setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
+                setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
+              },
             });
           }}>
             <div className="flex items-center justify-between">

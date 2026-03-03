@@ -53,7 +53,8 @@ export interface BioimpedanceExam extends BioimpedanceClinicalFields {
   muscleMass?: number | null;
 }
 
-export type CreateBioimpedancePayload = Omit<BioimpedanceExam, 'id' | 'tenantId' | 'createdAt'>;
+export type CreateBioimpedanceDto = Omit<BioimpedanceExam, 'id' | 'tenantId' | 'createdAt' | 'patientId'>;
+export type CreateBioimpedancePayload = CreateBioimpedanceDto;
 
 export interface BioimpedanceAiExtractionResponse extends Partial<BioimpedanceClinicalFields> {
   measuredAt?: string;
