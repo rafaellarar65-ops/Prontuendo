@@ -61,6 +61,10 @@ export class PrescriptionsService {
     });
   }
 
+  findOne(tenantId: string, id: string) {
+    return this.prescription.findFirst({ where: { id, tenantId } });
+  }
+
   findByConsultation(tenantId: string, consultationId: string) {
     return this.prescription.findMany({
       where: { tenantId, consultationId },
@@ -140,8 +144,15 @@ export class PrescriptionsService {
   }
 
   // Compatibilidade com endpoints legados
-  list(tenantId: string) {
-    return this.prescription.findMany({ where: { tenantId }, orderBy: { issuedAt: 'desc' } });
+  list(tenantId: string, filters: Record<string, unknown> = {}) {
+    const where = {
+      tenantId,
+      ...(filters.patientId ? { patientId: filters.patientId } : {}),
+      ...(filters.consultationId ? { consultationId: filters.consultationId } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+    };
+
+    return this.prescription.findMany({ where, orderBy: { issuedAt: 'desc' } });
   }
 
   update(tenantId: string, id: string, payload: Record<string, unknown>) {
@@ -158,5 +169,9 @@ export class PrescriptionsService {
       data: { tenantId, actorId, action, resource: 'prescription', metadata: payload as Prisma.InputJsonValue },
     });
     return { action, tenantId, actorId, status: 'queued', payload };
+  }
+
+  searchMedication(tenantId: string, actorId: string, payload: Record<string, unknown>) {
+    return this.execute('search-medication', tenantId, actorId, payload);
   }
 }
