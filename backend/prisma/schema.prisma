@@ -41,6 +41,16 @@ enum AppointmentStatus {
   CANCELADO
 }
 
+enum DocumentTemplateCategory {
+  RECEITUARIO
+  ATESTADO
+  LAUDO
+  SOLICITACAO_EXAME
+  RELATORIO_BIO
+  TERMO_CONSENTIMENTO
+  PERSONALIZADO
+}
+
 model Tenant {
   id                String             @id @default(cuid())
   name              String
@@ -56,6 +66,7 @@ model Tenant {
   prescriptions     Prescription[]
   medications       Medication[]
   drugTemplates     DrugTemplate[]
+  documentTemplates DocumentTemplate[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
 }
@@ -242,6 +253,23 @@ model DrugTemplate {
   @@index([tenantId, class])
 }
 
+model DocumentTemplate {
+  id           String                   @id @default(cuid())
+  tenantId     String
+  name         String
+  description  String?
+  category     DocumentTemplateCategory
+  canvasJson   Json
+  thumbnailUrl String?
+  isDefault    Boolean                  @default(false)
+  createdBy    String
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, category])
+}
+
 model ConsultationVersion {
   id             String       @id @default(cuid())
   consultationId String
@@ -306,18 +334,18 @@ model BioimpedanceExam {
 }
 
 model Appointment {
-  id         String            @id @default(cuid())
-  tenantId   String
-  patientId  String
-  date       DateTime
-  time       String
-  type       AppointmentType
-  status     AppointmentStatus @default(AGENDADO)
-  notes      String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  tenant     Tenant            @relation(fields: [tenantId], references: [id])
-  patient    Patient           @relation(fields: [patientId], references: [id])
+  id        String            @id @default(cuid())
+  tenantId  String
+  patientId String
+  date      DateTime
+  time      String
+  type      AppointmentType
+  status    AppointmentStatus @default(AGENDADO)
+  notes     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  patient   Patient           @relation(fields: [patientId], references: [id])
 
   @@unique([id, tenantId])
   @@index([tenantId, date, time])
