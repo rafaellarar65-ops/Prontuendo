@@ -1,46 +1,188 @@
-import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+type AppointmentType = 'PRIMEIRA_CONSULTA' | 'RETORNO' | 'TELECONSULTA' | 'EXAME';
+type AppointmentStatus = 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+
+type AppointmentWithPatient = {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  clinicianId: string;
+  date: Date;
+  startTime: string;
+  type: AppointmentType;
+  status: AppointmentStatus;
+  notes: string | null;
+  patient: {
+    fullName: string;
+  };
+};
+
+type AppointmentDelegate = {
+  findMany(args: Record<string, unknown>): Promise<AppointmentWithPatient[]>;
+  findFirst(args: Record<string, unknown>): Promise<AppointmentWithPatient | null>;
+  create(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
+  update(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
+  delete(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
+};
 
 @Injectable()
 export class AgendaService {
-  private readonly store: Item[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
+  private get appointment(): AppointmentDelegate {
+    return (this.prisma as unknown as { appointment: AppointmentDelegate }).appointment;
   }
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
-    this.store.push(item);
-    return item;
+  private readonly patientInclude = {
+    patient: {
+      select: {
+        fullName: true,
+      },
+    },
+  };
+
+  private mapAppointment(appointment: AppointmentWithPatient) {
+    return {
+      id: appointment.id,
+      patientId: appointment.patientId,
+      patientName: appointment.patient.fullName,
+      date: appointment.date.toISOString(),
+      time: appointment.startTime,
+      type: appointment.type,
+      status: appointment.status,
+      notes: appointment.notes ?? undefined,
+    };
   }
 
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (!item) {
-      return null;
+  async findAll(tenantId: string) {
+    const appointments = await this.appointment.findMany({
+      where: { tenantId },
+      include: this.patientInclude,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return appointments.map((appointment) => this.mapAppointment(appointment));
+  }
+
+  async findByDate(tenantId: string, date: string) {
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+
+    const appointments = await this.appointment.findMany({
+      where: {
+        tenantId,
+        date: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+      include: this.patientInclude,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return appointments.map((appointment) => this.mapAppointment(appointment));
+  }
+
+  async findByPatient(tenantId: string, patientId: string) {
+    const appointments = await this.appointment.findMany({
+      where: { tenantId, patientId },
+      include: this.patientInclude,
+      orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
+    });
+
+    return appointments.map((appointment) => this.mapAppointment(appointment));
+  }
+
+  async create(tenantId: string, clinicianId: string, payload: Record<string, unknown>) {
+    const created = await this.appointment.create({
+      data: {
+        tenantId,
+        clinicianId,
+        patientId: payload.patientId,
+        date: new Date(String(payload.date)),
+        startTime: String(payload.time),
+        endTime: payload.endTime ? String(payload.endTime) : null,
+        type: payload.type,
+        status: (payload.status as AppointmentStatus | undefined) ?? 'AGENDADO',
+        notes: payload.notes ? String(payload.notes) : null,
+        serviceId: payload.serviceId ? String(payload.serviceId) : null,
+        roomId: payload.roomId ? String(payload.roomId) : null,
+      },
+      include: this.patientInclude,
+    });
+
+    return this.mapAppointment(created);
+  }
+
+  async update(tenantId: string, id: string, payload: Record<string, unknown>) {
+    const current = await this.appointment.findFirst({
+      where: { id, tenantId },
+      include: this.patientInclude,
+    });
+
+    if (!current) {
+      throw new NotFoundException('Agendamento não encontrado');
     }
 
-    item.payload = { ...item.payload, ...payload };
-    item.updatedAt = new Date().toISOString();
-    return item;
+    const updated = await this.appointment.update({
+      where: { id },
+      data: {
+        patientId: payload.patientId,
+        date: payload.date ? new Date(String(payload.date)) : undefined,
+        startTime: payload.time ? String(payload.time) : undefined,
+        endTime: payload.endTime ? String(payload.endTime) : undefined,
+        type: payload.type,
+        status: payload.status,
+        notes: payload.notes === undefined ? undefined : payload.notes ? String(payload.notes) : null,
+        serviceId: payload.serviceId === undefined ? undefined : payload.serviceId ? String(payload.serviceId) : null,
+        roomId: payload.roomId === undefined ? undefined : payload.roomId ? String(payload.roomId) : null,
+      },
+      include: this.patientInclude,
+    });
+
+    return this.mapAppointment(updated);
   }
 
-  remove(tenantId: string, id: string) {
-    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (index < 0) {
-      return { deleted: false };
+  async updateStatus(tenantId: string, id: string, status: AppointmentStatus) {
+    const current = await this.appointment.findFirst({
+      where: { id, tenantId },
+      include: this.patientInclude,
+    });
+
+    if (!current) {
+      throw new NotFoundException('Agendamento não encontrado');
     }
 
-    this.store.splice(index, 1);
+    const updated = await this.appointment.update({
+      where: { id },
+      data: { status },
+      include: this.patientInclude,
+    });
+
+    return this.mapAppointment(updated);
+  }
+
+  async remove(tenantId: string, id: string) {
+    const current = await this.appointment.findFirst({
+      where: { id, tenantId },
+      include: this.patientInclude,
+    });
+
+    if (!current) {
+      throw new NotFoundException('Agendamento não encontrado');
+    }
+
+    await this.appointment.delete({
+      where: { id },
+    });
+
     return { deleted: true };
   }
 
-  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
+  async list(tenantId: string) {
+    return this.findAll(tenantId);
   }
 }
