@@ -1,10 +1,56 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { consultationApi, ConsultationDraft } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
 import { aiApi } from '@/lib/api/ai-api';
+import { useProtocolsByConditionQuery } from '@/features/protocols/use-protocols-query';
 import type { Patient } from '@/types/api';
+
+
+const CONDITIONS = {
+  DM2: 'DM2',
+  Hipotireoidismo: 'Hipotireoidismo',
+  Obesidade: 'Obesidade',
+  Osteoporose: 'Osteoporose',
+} as const;
+
+const CONDITION_MATCHERS: Array<{ condition: string; patterns: RegExp[] }> = [
+  {
+    condition: CONDITIONS.DM2,
+    patterns: [
+      /\bdm\s*2\b/i,
+      /\bdm2\b/i,
+      /diabetes\s*mellitus\s*tipo\s*2/i,
+      /diabetes\s*tipo\s*2/i,
+    ],
+  },
+  {
+    condition: CONDITIONS.Hipotireoidismo,
+    patterns: [/hipotireoidismo/i, /hipotireoide/i, /\be03\b/i],
+  },
+  { condition: CONDITIONS.Obesidade, patterns: [/obesidade/i, /\be66\b/i] },
+  {
+    condition: CONDITIONS.Osteoporose,
+    patterns: [/osteoporose/i, /\bm80\b/i, /\bm81\b/i],
+  },
+];
+
+const normalizeConditionFromAssessment = (assessment: string): string | null => {
+  if (!assessment) return null;
+
+  const normalized = assessment
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const match = CONDITION_MATCHERS.find(({ patterns }) =>
+    patterns.some((pattern) => pattern.test(normalized)),
+  );
+
+  return match?.condition ?? null;
+};
 
 // ── Patient Selector ─────────────────────────────────────────────
 const PatientSelector = ({
@@ -238,7 +284,30 @@ export const NewConsultationPage = () => {
   const [draft, setDraft] = useState<ConsultationDraft>({ subjetivo: '', objetivo: '', avaliacao: '', plano: '' });
   const [saved, setSaved] = useState(false);
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [debouncedAssessment, setDebouncedAssessment] = useState('');
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    const nextAssessment = draft.avaliacao?.trim() ?? '';
+
+    if (nextAssessment.length < 4) {
+      setDebouncedAssessment('');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedAssessment(nextAssessment);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [draft.avaliacao]);
+
+  const recognizedCondition = useMemo(
+    () => normalizeConditionFromAssessment(debouncedAssessment),
+    [debouncedAssessment],
+  );
+
+  const { data: protocolsByCondition, isFetching: isFetchingProtocols } = useProtocolsByConditionQuery(recognizedCondition ?? undefined);
 
   // Pre-select patient from URL
   useEffect(() => {
@@ -393,6 +462,19 @@ export const NewConsultationPage = () => {
               onChange={handleChange}
               placeholder="1. Diabetes Mellitus tipo 2 — controlada / 2. Obesidade grau II..."
             />
+            {recognizedCondition && (protocolsByCondition?.length ?? 0) > 0 && (
+              <div className="-mt-2 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs">
+                <span className="font-medium text-emerald-800">Protocolo disponível para {recognizedCondition}</span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/protocolos?condition=${encodeURIComponent(recognizedCondition)}`)}
+                  className="rounded-md border border-emerald-200 bg-white px-2 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Visualizar/aplicar
+                </button>
+                {isFetchingProtocols && <Loader2 size={12} className="animate-spin text-emerald-600" />}
+              </div>
+            )}
             <SoapSection
               label="Plano — Conduta terapêutica"
               field="plano"

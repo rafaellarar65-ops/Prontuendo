@@ -2,8 +2,10 @@ import { http } from '@/lib/api/http';
 import type { ModuleRecord, ProtocolPayload } from '@/types/clinical-modules';
 
 export const protocolsApi = {
-  async list(): Promise<Array<ModuleRecord<ProtocolPayload>>> {
-    const { data } = await http.get<Array<ModuleRecord<ProtocolPayload>>>('/protocols');
+  async list(condition?: string): Promise<Array<ModuleRecord<ProtocolPayload>>> {
+    const { data } = await http.get<Array<ModuleRecord<ProtocolPayload>>>('/protocols', {
+      params: condition ? { condition } : undefined,
+    });
     return data;
   },
   async create(payload: ProtocolPayload): Promise<ModuleRecord<ProtocolPayload>> {

@@ -17,6 +17,7 @@ export const queryKeys = {
     ['scores', 'history', patientId, scoreType ?? 'all'] as const,
   scoresLatest: (patientId: string) => ['scores', 'latest', patientId] as const,
   protocols: ['protocols'] as const,
+  protocolsByCondition: (condition: string) => ['protocols', 'condition', condition] as const,
   glucose: (patientId: string) => ['glucose', patientId] as const,
   labResults: (patientId: string) => ['lab-results', patientId] as const,
   prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
