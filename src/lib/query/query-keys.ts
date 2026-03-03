@@ -7,6 +7,7 @@ export const queryKeys = {
   consultationTemplates: ['consultation-templates'] as const,
   appointments: ['appointments'] as const,
   appointmentsByDate: (date: string) => ['appointments', date] as const,
+  appointmentsByRange: (from: string, to: string) => ['appointments', 'range', from, to] as const,
   bioimpedancePreview: ['bioimpedance', 'preview'] as const,
   bioimpedanceEvolution: (patientId?: string) => ['bioimpedance', 'evolution', patientId ?? 'all'] as const,
   templateBuilderElements: ['template-builder', 'elements'] as const,

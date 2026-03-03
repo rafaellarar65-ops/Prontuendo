@@ -47,20 +47,44 @@ export type UpdatePatientDto = Partial<CreatePatientDto>;
 export interface Appointment {
   id: string;
   patientId: string;
+  clinicianId?: string;
   patientName?: string;
-  date: string;
-  time: string;
-  type: 'PRIMEIRA_CONSULTA' | 'RETORNO' | 'TELECONSULTA' | 'EXAME';
-  status: 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+  scheduledAt: string;
+  date?: string;
+  time?: string;
+  durationMin?: number;
+  type:
+    | 'PRIMEIRA_CONSULTA'
+    | 'RETORNO'
+    | 'TELECONSULTA'
+    | 'EXAME'
+    | 'INITIAL_CONSULTATION'
+    | 'FOLLOW_UP'
+    | 'TELECONSULTATION'
+    | 'EXAM';
+  status:
+    | 'AGENDADO'
+    | 'CONFIRMADO'
+    | 'EM_ANDAMENTO'
+    | 'CONCLUIDO'
+    | 'CANCELADO'
+    | 'SCHEDULED'
+    | 'CONFIRMED'
+    | 'IN_PROGRESS'
+    | 'COMPLETED'
+    | 'CANCELED';
   notes?: string;
+  returnFromConsultationId?: string | null;
 }
 
 export interface CreateAppointmentDto {
   patientId: string;
-  date: string;
-  time: string;
+  clinicianId: string;
+  scheduledAt: string;
+  durationMin: number;
   type: Appointment['type'];
   notes?: string;
+  returnFromConsultationId?: string;
 }
 
 export interface Consultation {

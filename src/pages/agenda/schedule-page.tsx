@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -10,28 +10,73 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAppointmentsQuery } from '@/features/appointments/use-appointments-query';
+import { useCancelAppointmentMutation } from '@/features/appointments/use-cancel-appointment-mutation';
 import { useCreateAppointmentMutation } from '@/features/appointments/use-create-appointment-mutation';
+import { useUpdateAppointmentMutation } from '@/features/appointments/use-update-appointment-mutation';
 import { usePatientsQuery } from '@/features/patients/use-patients-query';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import type { Appointment, CreateAppointmentDto } from '@/types/api';
+
+type LocalAppointmentType = 'PRIMEIRA_CONSULTA' | 'RETORNO' | 'TELECONSULTA' | 'EXAME';
+type LocalAppointmentStatus = 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
 
 // ── Helpers ───────────────────────────────────────────────────────
 const fmt = (d: Date) => d.toISOString().split('T')[0] ?? '';
+const toLocalDateTime = (date: string, time: string) => `${date}T${time}:00`;
+const getAppointmentDate = (appt: Appointment) => appt.scheduledAt ?? toLocalDateTime(appt.date ?? '', appt.time ?? '00:00');
+const formatTime = (appt: Appointment) =>
+  new Date(getAppointmentDate(appt)).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-const typeLabel: Record<Appointment['type'], string> = {
+const normalizeType = (type: Appointment['type']): LocalAppointmentType => {
+  switch (type) {
+    case 'INITIAL_CONSULTATION':
+      return 'PRIMEIRA_CONSULTA';
+    case 'FOLLOW_UP':
+      return 'RETORNO';
+    case 'TELECONSULTATION':
+      return 'TELECONSULTA';
+    case 'EXAM':
+      return 'EXAME';
+    default:
+      return type;
+  }
+};
+
+const normalizeStatus = (status: Appointment['status']): LocalAppointmentStatus => {
+  switch (status) {
+    case 'SCHEDULED':
+      return 'AGENDADO';
+    case 'CONFIRMED':
+      return 'CONFIRMADO';
+    case 'IN_PROGRESS':
+      return 'EM_ANDAMENTO';
+    case 'COMPLETED':
+      return 'CONCLUIDO';
+    case 'CANCELED':
+      return 'CANCELADO';
+    default:
+      return status;
+  }
+};
+
+const typeLabel: Record<LocalAppointmentType, string> = {
   PRIMEIRA_CONSULTA: 'Primeira Consulta',
   RETORNO: 'Retorno',
   TELECONSULTA: 'Teleconsulta',
   EXAME: 'Exame',
 };
 
-const typeColor: Record<Appointment['type'], string> = {
+const typeColor: Record<LocalAppointmentType, string> = {
   PRIMEIRA_CONSULTA: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   RETORNO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   TELECONSULTA: 'bg-violet-50 text-violet-700 border-violet-200',
   EXAME: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
-const statusDot: Record<Appointment['status'], string> = {
+const statusDot: Record<LocalAppointmentStatus, string> = {
   AGENDADO: 'bg-slate-400',
   CONFIRMADO: 'bg-emerald-500',
   EM_ANDAMENTO: 'bg-indigo-500',
@@ -44,7 +89,7 @@ const AppointmentCard = ({ appt }: { appt: Appointment }) => (
   <div className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md">
     <div className="flex h-12 w-16 flex-shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-50">
       <Clock size={12} className="text-indigo-400 mb-0.5" />
-      <span className="text-sm font-bold text-indigo-700">{appt.time}</span>
+      <span className="text-sm font-bold text-indigo-700">{formatTime(appt)}</span>
     </div>
     <div className="min-w-0 flex-1">
       <p className="truncate font-semibold text-slate-800">
@@ -53,15 +98,15 @@ const AppointmentCard = ({ appt }: { appt: Appointment }) => (
       <span
         className={clsx(
           'mt-1 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium',
-          typeColor[appt.type],
+          typeColor[normalizeType(appt.type)],
         )}
       >
-        {typeLabel[appt.type]}
+        {typeLabel[normalizeType(appt.type)]}
       </span>
     </div>
     <div className="flex flex-shrink-0 items-center gap-1.5">
-      <span className={clsx('h-2 w-2 rounded-full', statusDot[appt.status])} />
-      <span className="text-xs text-slate-500">{appt.status}</span>
+      <span className={clsx('h-2 w-2 rounded-full', statusDot[normalizeStatus(appt.status)])} />
+      <span className="text-xs text-slate-500">{normalizeStatus(appt.status)}</span>
     </div>
   </div>
 );
@@ -69,8 +114,9 @@ const AppointmentCard = ({ appt }: { appt: Appointment }) => (
 // ── New Appointment Modal ─────────────────────────────────────────
 const EMPTY: CreateAppointmentDto = {
   patientId: '',
-  date: fmt(new Date()),
-  time: '08:00',
+  clinicianId: '',
+  scheduledAt: new Date().toISOString(),
+  durationMin: 30,
   type: 'RETORNO',
   notes: '',
 };
@@ -83,18 +129,46 @@ const NewAppointmentModal = ({
   onClose: () => void;
 }) => {
   const { mutate, isPending, error } = useCreateAppointmentMutation();
+  const { mutate: updateAppointment } = useUpdateAppointmentMutation();
+  const { mutate: cancelAppointment } = useCancelAppointmentMutation();
+  const clinicianId = useAuthStore((state) => state.user?.id ?? '');
   const { data: patients } = usePatientsQuery();
-  const [form, setForm] = useState<CreateAppointmentDto>({ ...EMPTY, date: initialDate });
+  const [form, setForm] = useState<CreateAppointmentDto>({
+    ...EMPTY,
+    clinicianId,
+    scheduledAt: toLocalDateTime(initialDate, '08:00'),
+  });
+  const [time, setTime] = useState('08:00');
+
+  const date = useMemo(() => form.scheduledAt.slice(0, 10), [form.scheduledAt]);
 
   const set =
     (key: keyof CreateAppointmentDto) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
+  const setDate = (value: string) => {
+    setForm((prev) => ({ ...prev, scheduledAt: toLocalDateTime(value, time) }));
+  };
+
+  const setFormTime = (value: string) => {
+    setTime(value);
+    setForm((prev) => ({ ...prev, scheduledAt: toLocalDateTime(prev.scheduledAt.slice(0, 10), value) }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutate(form, { onSuccess: onClose });
+    mutate(
+      {
+        ...form,
+        clinicianId,
+      },
+      { onSuccess: onClose },
+    );
   };
+
+  void updateAppointment;
+  void cancelAppointment;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -138,8 +212,8 @@ const NewAppointmentModal = ({
               <input
                 required
                 type="date"
-                value={form.date}
-                onChange={set('date')}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               />
             </div>
@@ -150,8 +224,8 @@ const NewAppointmentModal = ({
               <input
                 required
                 type="time"
-                value={form.time}
-                onChange={set('time')}
+                value={time}
+                onChange={(e) => setFormTime(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               />
             </div>
@@ -217,20 +291,22 @@ const NewAppointmentModal = ({
 
 // ── Page ──────────────────────────────────────────────────────────
 export const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState(fmt(new Date()));
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [showModal, setShowModal] = useState(false);
 
-  const { data, isLoading } = useAppointmentsQuery(selectedDate);
+  const selectedDateKey = useMemo(() => fmt(selectedDate), [selectedDate]);
+
+  const { data, isLoading } = useAppointmentsQuery({ date: selectedDateKey });
 
   const moveDate = (delta: number) => {
-    const d = new Date(selectedDate + 'T12:00:00');
+    const d = new Date(selectedDate);
     d.setDate(d.getDate() + delta);
-    setSelectedDate(fmt(d));
+    setSelectedDate(d);
   };
 
-  const isToday = selectedDate === fmt(new Date());
+  const isToday = selectedDateKey === fmt(new Date());
 
-  const displayDate = new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR', {
+  const displayDate = selectedDate.toLocaleDateString('pt-BR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -283,8 +359,8 @@ export const SchedulePage = () => {
 
         <input
           type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          value={selectedDateKey}
+          onChange={(e) => setSelectedDate(new Date(`${e.target.value}T12:00:00`))}
           className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
         />
       </div>
@@ -313,7 +389,7 @@ export const SchedulePage = () => {
       {!isLoading && data && data.length > 0 && (
         <div className="space-y-2">
           {[...data]
-            .sort((a, b) => a.time.localeCompare(b.time))
+            .sort((a, b) => getAppointmentDate(a).localeCompare(getAppointmentDate(b)))
             .map((appt) => (
               <AppointmentCard key={appt.id} appt={appt} />
             ))}
@@ -322,7 +398,7 @@ export const SchedulePage = () => {
 
       {showModal && (
         <NewAppointmentModal
-          initialDate={selectedDate}
+          initialDate={selectedDateKey}
           onClose={() => setShowModal(false)}
         />
       )}
