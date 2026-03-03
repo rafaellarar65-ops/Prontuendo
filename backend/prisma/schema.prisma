@@ -26,6 +26,21 @@ enum PrescriptionStatus {
   DISPENSADA
 }
 
+enum AppointmentType {
+  PRIMEIRA_CONSULTA
+  RETORNO
+  TELECONSULTA
+  EXAME
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
 model Tenant {
   id                String             @id @default(cuid())
   name              String
@@ -41,6 +56,7 @@ model Tenant {
   prescriptions     Prescription[]
   drugTemplates     DrugTemplate[]
   clinicalScores    ClinicalScore[]
+  appointments      Appointment[]
 }
 
 model User {
@@ -57,6 +73,7 @@ model User {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   patientLink   Patient?       @relation(fields: [patientLinkId], references: [id])
   refreshTokens RefreshToken[]
+  appointments  Appointment[]
 
   @@unique([tenantId, email])
   @@unique([id, tenantId])
@@ -86,6 +103,7 @@ model Patient {
   bioimpedanceExams BioimpedanceExam[]
   prescriptions     Prescription[]
   clinicalScores    ClinicalScore[]
+  appointments      Appointment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -106,6 +124,30 @@ model ClinicalScore {
 
   @@index([tenantId, patientId, scoreType])
   @@index([tenantId, patientId, calculatedAt])
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  tenantId    String
+  patientId   String
+  clinicianId String
+  date        DateTime
+  startTime   String
+  endTime     String?
+  type        AppointmentType
+  status      AppointmentStatus @default(AGENDADO)
+  notes       String?
+  serviceId   String?
+  roomId      String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  clinician   User              @relation(fields: [clinicianId], references: [id])
+
+  @@index([tenantId, date])
+  @@index([tenantId, patientId])
+  @@index([tenantId, status])
 }
 
 model RefreshToken {
