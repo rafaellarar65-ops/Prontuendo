@@ -2,32 +2,81 @@ import { randomUUID } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { ListAppointmentsDto } from './dto/list-appointments.dto';
+import { AppointmentStatus } from './dto/appointment.types';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+
+type AppointmentRecord = {
+  id: string;
+  tenantId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  patientId: string;
+  patientName?: string;
+  date: string;
+  time: string;
+  type: CreateAppointmentDto['type'];
+  status: AppointmentStatus;
+  notes?: string;
+};
 
 @Injectable()
 export class AgendaService {
-  private readonly store: Item[] = [];
+  private readonly store: AppointmentRecord[] = [];
 
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
+  list(tenantId: string, query: ListAppointmentsDto = {}) {
+    return this.store.filter((item) => {
+      if (item.tenantId !== tenantId) return false;
+      if (query.date && item.date !== query.date) return false;
+      if (query.patientId && item.patientId !== query.patientId) return false;
+      return true;
+    });
   }
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
+  findByDate(tenantId: string, date: string) {
+    return this.list(tenantId, { date });
+  }
+
+  findByPatient(tenantId: string, patientId: string) {
+    return this.list(tenantId, { patientId });
+  }
+
+  create(tenantId: string, clinicianId: string, dto: CreateAppointmentDto) {
     const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
+    const item: AppointmentRecord = {
+      id: randomUUID(),
+      tenantId,
+      createdBy: clinicianId,
+      createdAt: now,
+      updatedAt: now,
+      patientId: dto.patientId,
+      patientName: dto.patientName,
+      date: dto.date,
+      time: dto.time,
+      type: dto.type,
+      status: 'AGENDADO',
+      notes: dto.notes,
+    };
+
     this.store.push(item);
     return item;
   }
 
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
+  update(tenantId: string, id: string, dto: UpdateAppointmentDto) {
     const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
     if (!item) {
       return null;
     }
 
-    item.payload = { ...item.payload, ...payload };
+    Object.assign(item, dto);
     item.updatedAt = new Date().toISOString();
     return item;
+  }
+
+  updateStatus(tenantId: string, id: string, status: AppointmentStatus) {
+    return this.update(tenantId, id, { status });
   }
 
   remove(tenantId: string, id: string) {
@@ -38,9 +87,5 @@ export class AgendaService {
 
     this.store.splice(index, 1);
     return { deleted: true };
-  }
-
-  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
   }
 }

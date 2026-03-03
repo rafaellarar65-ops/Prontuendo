@@ -9,12 +9,12 @@ export const appointmentsApi = {
     return data;
   },
   async create(dto: CreateAppointmentDto): Promise<Appointment> {
-    const { data } = await http.post<Appointment>('/agenda', { payload: dto });
+    const { data } = await http.post<Appointment>('/agenda', dto);
     return data;
   },
   async updateStatus(id: string, status: Appointment['status']): Promise<Appointment> {
-    const { data } = await http.patch<Appointment>(`/agenda/${id}`, {
-      payload: { status },
+    const { data } = await http.patch<Appointment>(`/agenda/${id}/status`, {
+      status,
     });
     return data;
   },
