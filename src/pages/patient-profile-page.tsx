@@ -8,12 +8,14 @@ import {
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';
 import { scoresApi } from '@/lib/api/scores-api';
+import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
 import { useLabResultsQuery } from '@/features/lab-results/use-lab-results-query';
 import { useCreateLabResultMutation } from '@/features/lab-results/use-create-lab-result-mutation';
 import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis-query';
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
+import { BioimpedanceFormModal, type BioimpedanceFormValues } from '@/components/domain/bioimpedance-form-modal';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
@@ -324,14 +326,86 @@ const GlucoseTab = ({ patientId }: { patientId: string }) => {
 };
 
 // ── Bioimpedance Tab ─────────────────────────────────────────────
-const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
+const emptyBioimpedanceForm: BioimpedanceFormValues = {
+  measuredAt: new Date().toISOString().slice(0, 10),
+  weightKg: '',
+  bodyFatPct: '',
+  muscleMassKg: '',
+  bodyWaterPct: '',
+  visceralFatLevel: '',
+  basalMetabolicRateKcal: '',
+  boneMassKg: '',
+  imc: '',
+};
+
+const BioimpedanceTab = ({ patientId, patientHeightCm }: { patientId: string; patientHeightCm?: number | null }) => {
+  const qc = useQueryClient();
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState<BioimpedanceFormValues>(emptyBioimpedanceForm);
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
+  const hasHeight = typeof patientHeightCm === 'number' && Number.isFinite(patientHeightCm) && patientHeightCm > 0;
+
+  const createMutation = useMutation({
+    mutationFn: bioimpedanceApi.create,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bioimpedance', 'evolution', patientId] });
+      setShowModal(false);
+      setForm(emptyBioimpedanceForm);
+    },
+  });
+
+  const parseOptionalNumber = (value: string) => {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const updateField = (field: keyof BioimpedanceFormValues, value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'weightKg') {
+        const weight = parseOptionalNumber(value);
+        if (hasHeight && weight !== null) {
+          const imc = weight / ((patientHeightCm! / 100) ** 2);
+          next.imc = imc.toFixed(2);
+        } else {
+          next.imc = '';
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (createMutation.isPending) return;
+
+    createMutation.mutate({
+      patientId,
+      measuredAt: new Date(form.measuredAt).toISOString(),
+      weightKg: parseOptionalNumber(form.weightKg),
+      bodyFatPct: parseOptionalNumber(form.bodyFatPct),
+      muscleMassKg: parseOptionalNumber(form.muscleMassKg),
+      metadata: {
+        bodyWaterPct: parseOptionalNumber(form.bodyWaterPct),
+        visceralFatLevel: parseOptionalNumber(form.visceralFatLevel),
+        basalMetabolicRateKcal: parseOptionalNumber(form.basalMetabolicRateKcal),
+        boneMassKg: parseOptionalNumber(form.boneMassKg),
+        imc: parseOptionalNumber(form.imc),
+      },
+    });
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">
+          <Plus size={13} /> Registrar exame
+        </button>
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Última data</p><p className="text-sm font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</p></div>
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Gordura corporal</p><p className="text-sm font-semibold text-slate-700">{latest?.fatMassPercent ?? 0}%</p></div>
@@ -345,6 +419,16 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         ))}
         {(!data || !data.length) && <li className="text-sm text-slate-400">Nenhum exame de bioimpedância.</li>}
       </ul>
+      {showModal && (
+        <BioimpedanceFormModal
+          form={form}
+          onChange={updateField}
+          onClose={() => setShowModal(false)}
+          onSubmit={handleSubmit}
+          isPending={createMutation.isPending}
+          hasHeight={hasHeight}
+        />
+      )}
     </div>
   );
 };
@@ -534,7 +618,7 @@ export const PatientProfilePage = () => {
 
         {tab === 'glicemia' && <GlucoseTab patientId={patientId!} />}
 
-        {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} />}
+        {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} patientHeightCm={(data as Patient & { heightCm?: number }).heightCm ?? null} />}
 
 
         {tab === 'documentos' && (
