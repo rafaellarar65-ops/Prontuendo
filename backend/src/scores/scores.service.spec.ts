@@ -10,22 +10,19 @@ describe('ScoresService', () => {
 
     const service = moduleRef.get(ScoresService);
 
-    service.calculate('t1', 'med1', {
-      patientId: 'p1',
-      scoreType: 'risco-cardiaco',
-      parameters: { idade: 50, imc: 30 },
+    service.calculateBmi('t1', 'med1', 'p1', {
+      weightKg: 90,
+      heightM: 1.8,
     });
 
-    service.calculate('t1', 'med2', {
-      patientId: 'p1',
-      scoreType: 'risco-cardiaco',
-      parameters: { idade: 45, imc: 28 },
+    service.calculateBmi('t1', 'med2', 'p1', {
+      weightKg: 82,
+      heightM: 1.7,
     });
 
-    service.calculate('t2', 'med1', {
-      patientId: 'p1',
-      scoreType: 'risco-cardiaco',
-      parameters: { idade: 60, imc: 31 },
+    service.calculateBmi('t2', 'med1', 'p1', {
+      weightKg: 95,
+      heightM: 1.75,
     });
 
     expect(service.list('t1', 'med1', {})).toHaveLength(1);
@@ -40,17 +37,21 @@ describe('ScoresService', () => {
 
     const service = moduleRef.get(ScoresService);
 
-    service.calculate('t1', 'med1', {
-      patientId: 'p1',
-      scoreType: 'tipo-1',
-      parameters: { p: 1 },
+    service.calculateHomaIr('t1', 'med1', 'p1', {
+      fastingGlucose: 90,
+      fastingInsulin: 10,
     });
-    service.calculate('t1', 'med1', {
-      patientId: 'p1',
-      scoreType: 'tipo-2',
-      parameters: { p: 2 },
+    service.calculateFindrisc('t1', 'med1', 'p1', {
+      ageScore: 2,
+      bmiScore: 1,
+      waistScore: 3,
+      physicalActivityScore: 0,
+      fruitsVegetablesScore: 1,
+      antiHypertensiveScore: 0,
+      highGlucoseHistoryScore: 5,
+      familyHistoryScore: 3,
     });
 
-    expect(service.latest('t1', 'med1', 'p1')?.scoreType).toBe('tipo-2');
+    expect(service.latest('t1', 'med1', 'p1')?.scoreType).toBe('findrisc');
   });
 });
