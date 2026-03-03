@@ -4,6 +4,7 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { ClinicalContextService } from './clinical-context.service';
 import { consultationAssistantPrompt } from './prompts/consultation-assistant';
 import { labExtractionPrompt } from './prompts/lab-extraction';
 import { bioimpedanceExtractionPrompt } from './prompts/bioimpedance-extraction';
@@ -21,6 +22,7 @@ export class AiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly clinicalContextService: ClinicalContextService,
   ) {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (apiKey) {
@@ -62,10 +64,27 @@ export class AiService {
     return this.callGemini(systemPrompt, userContent);
   }
 
+
+  private async withClinicalContext(
+    tenantId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    if (typeof payload.patientId !== 'string' || !payload.patientId) {
+      return payload;
+    }
+
+    const context = await this.clinicalContextService.buildContext(tenantId, payload.patientId);
+    return {
+      ...payload,
+      clinicalContext: context,
+    };
+  }
+
   // 1. Assistente de Consulta
   async assistConsultation(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('assist-consultation', tenantId, actorId, payload, consultationAssistantPrompt, userContent);
+    const enrichedPayload = await this.withClinicalContext(tenantId, payload);
+    const userContent = JSON.stringify(enrichedPayload);
+    return this.logAndCall('assist-consultation', tenantId, actorId, enrichedPayload, consultationAssistantPrompt, userContent);
   }
 
   // 2. Extração de Exames Laboratoriais
@@ -88,14 +107,16 @@ export class AiService {
 
   // 5. Evolução do Paciente
   async analyzePatientEvolution(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('patient-evolution', tenantId, actorId, payload, patientEvolutionPrompt, userContent);
+    const enrichedPayload = await this.withClinicalContext(tenantId, payload);
+    const userContent = JSON.stringify(enrichedPayload);
+    return this.logAndCall('patient-evolution', tenantId, actorId, enrichedPayload, patientEvolutionPrompt, userContent);
   }
 
   // 6. Consenso de Protocolo
   async suggestProtocol(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('suggest-protocol', tenantId, actorId, payload, protocolConsensusPrompt, userContent);
+    const enrichedPayload = await this.withClinicalContext(tenantId, payload);
+    const userContent = JSON.stringify(enrichedPayload);
+    return this.logAndCall('suggest-protocol', tenantId, actorId, enrichedPayload, protocolConsensusPrompt, userContent);
   }
 
   // 7. Análise de Glicemia
@@ -115,8 +136,9 @@ export class AiService {
   // 9. Verificação de Prescrição (segurança)
   async checkPrescription(tenantId: string, actorId: string, payload: Record<string, unknown>) {
     const systemPrompt = `Você é farmacêutico clínico especialista em endocrinologia. Verifique a prescrição fornecida quanto a interações medicamentosas, contraindicações e alertas de segurança. Retorne JSON: {"assistantType":"prescription_check","medications":[],"interactions":[],"contraindications":[],"alerts":[],"overallRisk":"low|medium|high","safety":{"isDefinitivePrescription":false,"medicalSupervisionRequired":true,"disclaimer":"Verificação de apoio. Decisão final exclusivamente do médico."}}. Responda APENAS com JSON válido.`;
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('prescription-check', tenantId, actorId, payload, systemPrompt, userContent);
+    const enrichedPayload = await this.withClinicalContext(tenantId, payload);
+    const userContent = JSON.stringify(enrichedPayload);
+    return this.logAndCall('prescription-check', tenantId, actorId, enrichedPayload, systemPrompt, userContent);
   }
 
   // Proxy legado

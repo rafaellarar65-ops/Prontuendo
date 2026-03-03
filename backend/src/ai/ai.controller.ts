@@ -1,10 +1,35 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AiService } from './ai.service';
+
+class AssistConsultationDto {
+  @IsString()
+  patientId!: string;
+
+  @IsObject()
+  soap!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  payload?: Record<string, unknown>;
+}
+
+class AssistRequestDto {
+  @IsIn(['assist-consultation', 'analyze-exams', 'suggest-protocol', 'check-prescription', 'patient-evolution'])
+  operation!: 'assist-consultation' | 'analyze-exams' | 'suggest-protocol' | 'check-prescription' | 'patient-evolution';
+
+  @IsOptional()
+  @IsString()
+  patientId?: string;
+
+  @IsObject()
+  payload!: Record<string, unknown>;
+}
 
 @ApiTags('ai')
 @ApiBearerAuth()
@@ -12,12 +37,40 @@ import { AiService } from './ai.service';
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
+  @Post('assist')
+  @Roles('MEDICO', 'RECEPCAO')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Endpoint unificado de assistência clínica por operação (Gemini)' })
+  assist(@CurrentUser() user: AuthUser, @Body() request: AssistRequestDto) {
+    const payload = request.patientId ? { ...request.payload, patientId: request.patientId } : request.payload;
+
+    switch (request.operation) {
+      case 'assist-consultation':
+        return this.aiService.assistConsultation(user.tenantId, user.sub, payload);
+      case 'analyze-exams':
+        if (payload.examType === 'bioimpedance') {
+          return this.aiService.extractBioimpedance(user.tenantId, user.sub, payload);
+        }
+        return this.aiService.extractLab(user.tenantId, user.sub, payload);
+      case 'suggest-protocol':
+        return this.aiService.suggestProtocol(user.tenantId, user.sub, payload);
+      case 'check-prescription':
+        return this.aiService.checkPrescription(user.tenantId, user.sub, payload);
+      case 'patient-evolution':
+        return this.aiService.analyzePatientEvolution(user.tenantId, user.sub, payload);
+    }
+  }
+
   @Post('assist-consultation')
   @Roles('MEDICO')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Assistente clínico durante consulta (Gemini)' })
-  assistConsultation(@CurrentUser() user: AuthUser, @Body() payload: Record<string, unknown>) {
-    return this.aiService.assistConsultation(user.tenantId, user.sub, payload);
+  assistConsultation(@CurrentUser() user: AuthUser, @Body() payload: AssistConsultationDto) {
+    return this.aiService.assistConsultation(user.tenantId, user.sub, {
+      patientId: payload.patientId,
+      soap: payload.soap,
+      ...(payload.payload ?? {}),
+    });
   }
 
   @Post('extract-lab')
