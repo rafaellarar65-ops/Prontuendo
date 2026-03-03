@@ -26,7 +26,7 @@ export class ProtocolsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar registro do módulo' })
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.update(user.tenantId, id, dto.payload);
+    return this.service.update(user.tenantId, id, user.sub, dto.payload);
   }
 
   @Delete(':id')
