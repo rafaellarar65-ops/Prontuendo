@@ -22,6 +22,7 @@ const typeLabel: Record<Appointment['type'], string> = {
   RETORNO: 'Retorno',
   TELECONSULTA: 'Teleconsulta',
   EXAME: 'Exame',
+  URGENCIA: 'Urgência',
 };
 
 const typeColor: Record<Appointment['type'], string> = {
@@ -29,6 +30,7 @@ const typeColor: Record<Appointment['type'], string> = {
   RETORNO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   TELECONSULTA: 'bg-violet-50 text-violet-700 border-violet-200',
   EXAME: 'bg-amber-50 text-amber-700 border-amber-200',
+  URGENCIA: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 const statusDot: Record<Appointment['status'], string> = {
@@ -37,6 +39,7 @@ const statusDot: Record<Appointment['status'], string> = {
   EM_ANDAMENTO: 'bg-indigo-500',
   CONCLUIDO: 'bg-emerald-700',
   CANCELADO: 'bg-rose-500',
+  FALTOU: 'bg-amber-500',
 };
 
 // ── Appointment card ──────────────────────────────────────────────
@@ -44,11 +47,11 @@ const AppointmentCard = ({ appt }: { appt: Appointment }) => (
   <div className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md">
     <div className="flex h-12 w-16 flex-shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-50">
       <Clock size={12} className="text-indigo-400 mb-0.5" />
-      <span className="text-sm font-bold text-indigo-700">{appt.time}</span>
+      <span className="text-sm font-bold text-indigo-700">{appt.time ?? new Date(appt.scheduledAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>
     <div className="min-w-0 flex-1">
       <p className="truncate font-semibold text-slate-800">
-        {appt.patientName ?? 'Paciente'}
+        {appt.patientName ?? appt.patient?.fullName ?? 'Paciente'}
       </p>
       <span
         className={clsx(
@@ -67,7 +70,15 @@ const AppointmentCard = ({ appt }: { appt: Appointment }) => (
 );
 
 // ── New Appointment Modal ─────────────────────────────────────────
-const EMPTY: CreateAppointmentDto = {
+type NewAppointmentForm = {
+  patientId: string;
+  date: string;
+  time: string;
+  type: Appointment['type'];
+  notes?: string;
+};
+
+const EMPTY: NewAppointmentForm = {
   patientId: '',
   date: fmt(new Date()),
   time: '08:00',
@@ -84,16 +95,25 @@ const NewAppointmentModal = ({
 }) => {
   const { mutate, isPending, error } = useCreateAppointmentMutation();
   const { data: patients } = usePatientsQuery();
-  const [form, setForm] = useState<CreateAppointmentDto>({ ...EMPTY, date: initialDate });
+  const [form, setForm] = useState<NewAppointmentForm>({ ...EMPTY, date: initialDate });
 
   const set =
-    (key: keyof CreateAppointmentDto) =>
+    (key: keyof NewAppointmentForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutate(form, { onSuccess: onClose });
+    const dto: CreateAppointmentDto = {
+      tenantId: '',
+      clinicianId: '',
+      patientId: form.patientId,
+      scheduledAt: `${form.date}T${form.time}:00`,
+      durationMin: 30,
+      type: form.type,
+      ...(form.notes ? { notes: form.notes } : {}),
+    };
+    mutate(dto, { onSuccess: onClose });
   };
 
   return (
@@ -170,6 +190,7 @@ const NewAppointmentModal = ({
               <option value="RETORNO">Retorno</option>
               <option value="TELECONSULTA">Teleconsulta</option>
               <option value="EXAME">Exame</option>
+              <option value="URGENCIA">Urgência</option>
             </select>
           </div>
 
@@ -313,7 +334,7 @@ export const SchedulePage = () => {
       {!isLoading && data && data.length > 0 && (
         <div className="space-y-2">
           {[...data]
-            .sort((a, b) => a.time.localeCompare(b.time))
+            .sort((a, b) => (a.time ?? a.scheduledAt).localeCompare(b.time ?? b.scheduledAt))
             .map((appt) => (
               <AppointmentCard key={appt.id} appt={appt} />
             ))}

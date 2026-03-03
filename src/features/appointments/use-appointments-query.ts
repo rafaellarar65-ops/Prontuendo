@@ -5,5 +5,6 @@ import { queryKeys } from '@/lib/query/query-keys';
 export const useAppointmentsQuery = (date?: string) =>
   useQuery({
     queryKey: date ? queryKeys.appointmentsByDate(date) : queryKeys.appointments,
-    queryFn: () => appointmentsApi.list(date),
+    queryFn: () => appointmentsApi.listByDate(date ?? ''),
+    enabled: Boolean(date),
   });
