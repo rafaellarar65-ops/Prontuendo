@@ -62,10 +62,43 @@ export class AiService {
     return this.callGemini(systemPrompt, userContent);
   }
 
+
+
+  private async getConsultationDataAvailability(tenantId: string, patientId: string) {
+    const [glucoseCount, labCount, bioCount, consultationCount] = await Promise.all([
+      this.prisma.glucoseLog.count({ where: { tenantId, patientId } }),
+      this.prisma.labResult.count({ where: { tenantId, patientId } }),
+      this.prisma.bioimpedanceExam.count({ where: { tenantId, patientId } }),
+      this.prisma.consultation.count({ where: { tenantId, patientId } }),
+    ]);
+
+    return { glucoseCount, labCount, bioCount, consultationCount };
+  }
+
   // 1. Assistente de Consulta
   async assistConsultation(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const userContent = JSON.stringify(payload);
-    return this.logAndCall('assist-consultation', tenantId, actorId, payload, consultationAssistantPrompt, userContent);
+    const patientId = typeof payload.patientId === 'string' ? payload.patientId : null;
+
+    const dataAvailability = patientId
+      ? await this.getConsultationDataAvailability(tenantId, patientId)
+      : { glucoseCount: 0, labCount: 0, bioCount: 0, consultationCount: 0 };
+
+    const aiPayload = { ...payload, dataAvailability };
+    const userContent = JSON.stringify(aiPayload);
+    const response = await this.logAndCall(
+      'assist-consultation',
+      tenantId,
+      actorId,
+      aiPayload,
+      consultationAssistantPrompt,
+      userContent,
+    );
+
+    if (response && typeof response === 'object') {
+      return { ...(response as Record<string, unknown>), dataAvailability };
+    }
+
+    return { response, dataAvailability };
   }
 
   // 2. Extração de Exames Laboratoriais

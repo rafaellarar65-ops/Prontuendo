@@ -4,7 +4,7 @@ import { Bot, Check, ChevronDown, History, Loader2, Save, Search, X } from 'luci
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { consultationApi, ConsultationDraft, ConsultationVersionDetail } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
-import { aiApi } from '@/lib/api/ai-api';
+import { aiApi, type AssistConsultationResponse } from '@/lib/api/ai-api';
 import { useProtocolsByConditionQuery } from '@/features/protocols/use-protocols-query';
 import { useConsultationVersionQuery, useConsultationVersionsQuery } from '@/features/consultations/use-consultation-versions-query';
 import type { Patient } from '@/types/api';
@@ -224,7 +224,7 @@ const AiPanel = ({
   patient: Patient | null;
   draft: ConsultationDraft;
 }) => {
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<AssistConsultationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -234,12 +234,13 @@ const AiPanel = ({
     setError('');
     try {
       const r = await aiApi.assistConsultation({
+        patientId: patient.id,
         patient: { name: patient.fullName, age: patient.birthDate ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / 3.156e10) : null },
         queixas: draft.subjetivo ?? '',
         historico: draft.objetivo ?? '',
         avaliacao: draft.avaliacao ?? '',
       });
-      setResult(r as Record<string, unknown>);
+      setResult(r);
     } catch {
       setError('Erro ao chamar assistente IA. Verifique a chave Gemini.');
     } finally {
@@ -269,17 +270,28 @@ const AiPanel = ({
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
       {result && !loading && (
         <div className="space-y-3 text-xs">
-          {(result as any).clinicalSummary && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700">
+            <p className="font-semibold">
+              IA tem acesso a: {result.dataAvailability.glucoseCount} glicemias, {result.dataAvailability.labCount} exames, {result.dataAvailability.bioCount} bioimpedâncias, {result.dataAvailability.consultationCount} consultas anteriores
+            </p>
+            <ul className="mt-1 space-y-0.5 text-[11px]">
+              {result.dataAvailability.glucoseCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.labCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.bioCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.consultationCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+            </ul>
+          </div>
+          {result.clinicalSummary && (
             <div>
               <p className="font-semibold text-slate-700 mb-1">Resumo clínico</p>
-              <p className="text-slate-600 leading-relaxed">{(result as any).clinicalSummary}</p>
+              <p className="text-slate-600 leading-relaxed">{result.clinicalSummary}</p>
             </div>
           )}
-          {(result as any).differentialDiagnoses?.length > 0 && (
+          {(result.differentialDiagnoses?.length ?? 0) > 0 && (
             <div>
               <p className="font-semibold text-slate-700 mb-1">Hipóteses diagnósticas</p>
               <ul className="space-y-1">
-                {(result as any).differentialDiagnoses.slice(0, 3).map((d: any, i: number) => (
+                {(result.differentialDiagnoses ?? []).slice(0, 3).map((d, i: number) => (
                   <li key={i} className="rounded-lg bg-indigo-50 px-2 py-1.5">
                     <p className="font-medium text-indigo-800">{d.hypothesis}</p>
                     <p className="text-indigo-600">{d.clinicalRationale}</p>
@@ -288,17 +300,17 @@ const AiPanel = ({
               </ul>
             </div>
           )}
-          {(result as any).redFlags?.length > 0 && (
+          {(result.redFlags?.length ?? 0) > 0 && (
             <div>
               <p className="font-semibold text-rose-600 mb-1">Alertas</p>
               <ul className="space-y-0.5">
-                {(result as any).redFlags.map((f: string, i: number) => (
+                {(result.redFlags ?? []).map((f: string, i: number) => (
                   <li key={i} className="text-rose-600">• {f}</li>
                 ))}
               </ul>
             </div>
           )}
-          <p className="text-slate-400 italic leading-relaxed">{(result as any).safety?.disclaimer}</p>
+          <p className="text-slate-400 italic leading-relaxed">{result.safety?.disclaimer}</p>
         </div>
       )}
     </aside>

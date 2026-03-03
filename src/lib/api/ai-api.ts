@@ -1,8 +1,42 @@
 import { http } from '@/lib/api/http';
 
+export interface ConsultationDataAvailability {
+  glucoseCount: number;
+  labCount: number;
+  bioCount: number;
+  consultationCount: number;
+}
+
+export interface AssistConsultationPayload {
+  patientId: string;
+  patient: {
+    name: string;
+    age: number | null;
+  };
+  queixas: string;
+  historico: string;
+  avaliacao: string;
+}
+
+export interface AssistConsultationResponse {
+  assistantType?: string;
+  clinicalSummary?: string;
+  differentialDiagnoses?: Array<{
+    hypothesis: string;
+    clinicalRationale: string;
+  }>;
+  redFlags?: string[];
+  safety?: {
+    disclaimer?: string;
+    [key: string]: unknown;
+  };
+  dataAvailability: ConsultationDataAvailability;
+  [key: string]: unknown;
+}
+
 export const aiApi = {
-  async assistConsultation(payload: Record<string, unknown>) {
-    const { data } = await http.post('/ai/assist-consultation', payload);
+  async assistConsultation(payload: AssistConsultationPayload) {
+    const { data } = await http.post<AssistConsultationResponse>('/ai/assist-consultation', payload);
     return data;
   },
   async extractLab(text: string) {
