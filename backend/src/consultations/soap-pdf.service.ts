@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, posix } from 'path';
 
 import { Injectable } from '@nestjs/common';
 
@@ -97,16 +97,17 @@ export class SoapPdfService {
     const buffer = this.buildPdfBuffer(lines);
     const timestamp = Date.now();
     const fileName = `soap_${consultationId}_${timestamp}.pdf`;
-    const relativePath = join('uploads', tenantId, patientId, fileName);
-    const outputPath = join(process.cwd(), relativePath);
+    const storageKey = posix.join(tenantId, patientId, fileName);
+    const outputPath = join(process.cwd(), 'uploads', storageKey);
 
     await fs.mkdir(join(process.cwd(), 'uploads', tenantId, patientId), { recursive: true });
     await fs.writeFile(outputPath, buffer);
 
     return {
       fileName,
-      relativePath,
+      storageKey,
       mimeType: 'application/pdf',
+      fileSize: buffer.byteLength,
     };
   }
 }
