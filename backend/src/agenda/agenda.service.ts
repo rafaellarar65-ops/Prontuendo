@@ -2,7 +2,17 @@ import { randomUUID } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+
+type Item = {
+  id: string;
+  tenantId: string;
+  payload: CreateAppointmentDto;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 @Injectable()
 export class AgendaService {
@@ -12,20 +22,34 @@ export class AgendaService {
     return this.store.filter((item) => item.tenantId === tenantId);
   }
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
+  create(tenantId: string, actorId: string, payload: CreateAppointmentDto) {
     const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
+    const item: Item = {
+      id: randomUUID(),
+      tenantId,
+      payload: {
+        ...payload,
+        durationMin: payload.durationMin ?? 30,
+      },
+      createdBy: actorId,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.store.push(item);
     return item;
   }
 
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
+  update(tenantId: string, id: string, payload: UpdateAppointmentDto) {
     const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
     if (!item) {
       return null;
     }
 
-    item.payload = { ...item.payload, ...payload };
+    item.payload = {
+      ...item.payload,
+      ...payload,
+      durationMin: payload.durationMin ?? item.payload.durationMin ?? 30,
+    };
     item.updatedAt = new Date().toISOString();
     return item;
   }
