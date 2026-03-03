@@ -10,7 +10,8 @@ export type PatientProfileTab =
 export interface ConsultationTemplate {
   id: string;
   name: string;
-  category: 'SOAP' | 'RETORNO' | 'PRIMEIRA_CONSULTA' | 'NUTRICAO';
+  category: 'SOAP' | 'RETORNO' | 'PRIMEIRA_CONSULTA' | 'NUTRICAO' | 'PERSONALIZADO';
+  canvasJson?: object;
   isDefault: boolean;
 }
 
