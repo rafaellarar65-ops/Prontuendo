@@ -35,6 +35,13 @@ export class ScoresController {
     return this.service.remove(user.tenantId, id);
   }
 
+
+  @Post('calculate')
+  @ApiOperation({ summary: 'Calcular e salvar escore' })
+  calculate(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
+    return this.service.execute('calculate', user.tenantId, user.sub, dto.payload);
+  }
+
   @Post(':id/results')
   @ApiOperation({ summary: 'Registrar resultado de escore' })
   addResult(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {

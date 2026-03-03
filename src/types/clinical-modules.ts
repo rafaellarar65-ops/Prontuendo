@@ -15,6 +15,14 @@ export interface ClinicPayload {
 export interface ScorePayload {
   label: string;
   value: string;
+  patientId?: string;
+  scoreType?: string;
+  inputs?: Record<string, string | number | boolean>;
+  result?: {
+    scoreValue: string;
+    interpretation: string;
+    riskLevel: 'verde' | 'amarelo' | 'laranja' | 'vermelho';
+  };
 }
 
 export interface ProtocolPayload {
