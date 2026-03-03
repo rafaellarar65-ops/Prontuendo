@@ -41,6 +41,16 @@ enum AppointmentStatus {
   CANCELADO
 }
 
+enum DocumentCategory {
+  EXAME
+  LAUDO
+  PRESCRICAO
+  ATESTADO
+  TERMO
+  IMAGEM_CLINICA
+  OUTRO
+}
+
 model Tenant {
   id                String             @id @default(cuid())
   name              String
@@ -58,6 +68,7 @@ model Tenant {
   drugTemplates     DrugTemplate[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
+  documents         Document[]
 }
 
 model User {
@@ -104,6 +115,7 @@ model Patient {
   prescriptions     Prescription[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
+  documents         Document[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -166,10 +178,35 @@ model Consultation {
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   versions      ConsultationVersion[]
   prescriptions Prescription[]
+  documents     Document[]
 
   @@unique([id, tenantId])
   @@index([tenantId, patientId, status])
   @@index([tenantId, updatedAt])
+}
+
+model Document {
+  id             String           @id @default(cuid())
+  tenantId       String
+  patientId      String
+  consultationId String?
+  uploadedById   String
+  category       DocumentCategory
+  fileName       String
+  mimeType       String
+  fileSize       Int
+  storageKey     String
+  description    String?
+  tags           String[]
+  isFromPortal   Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  patient        Patient          @relation(fields: [patientId], references: [id])
+  consultation   Consultation?    @relation(fields: [consultationId], references: [id])
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, patientId, category])
+  @@index([tenantId, patientId, createdAt])
 }
 
 model Prescription {
@@ -306,18 +343,18 @@ model BioimpedanceExam {
 }
 
 model Appointment {
-  id         String            @id @default(cuid())
-  tenantId   String
-  patientId  String
-  date       DateTime
-  time       String
-  type       AppointmentType
-  status     AppointmentStatus @default(AGENDADO)
-  notes      String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  tenant     Tenant            @relation(fields: [tenantId], references: [id])
-  patient    Patient           @relation(fields: [patientId], references: [id])
+  id        String            @id @default(cuid())
+  tenantId  String
+  patientId String
+  date      DateTime
+  time      String
+  type      AppointmentType
+  status    AppointmentStatus @default(AGENDADO)
+  notes     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  patient   Patient           @relation(fields: [patientId], references: [id])
 
   @@unique([id, tenantId])
   @@index([tenantId, date, time])
