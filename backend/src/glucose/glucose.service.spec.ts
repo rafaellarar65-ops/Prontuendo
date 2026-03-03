@@ -20,9 +20,11 @@ describe('GlucoseService', () => {
     }).compile();
 
     const service = moduleRef.get(GlucoseService);
-    const stats = await service.stats('t1', 'p1');
+    const stats = await service.analyzeGlucose('t1', 'p1');
 
     expect(stats.count).toBe(3);
-    expect(stats.timeInRange).toBeGreaterThan(0);
+    expect(stats.average).toBeCloseTo(150);
+    expect(stats.min).toBe(100);
+    expect(stats.max).toBe(200);
   });
 });
