@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';
+import { scoresApi } from '@/lib/api/scores-api';
 import { useLabResultsQuery } from '@/features/lab-results/use-lab-results-query';
 import { useCreateLabResultMutation } from '@/features/lab-results/use-create-lab-result-mutation';
 import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis-query';
@@ -360,6 +361,7 @@ const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
 ];
 
 export const PatientProfilePage = () => {
+  const navigate = useNavigate();
   const { patientId } = useParams<{ patientId: string }>();
   const [tab, setTab] = useState<Tab>('dados');
   const [showEdit, setShowEdit] = useState(false);
@@ -369,6 +371,32 @@ export const PatientProfilePage = () => {
     queryFn: () => patientApi.detail(patientId!),
     enabled: !!patientId,
   });
+
+  const { data: latestScores } = useQuery({
+    queryKey: ['scores', 'latest', patientId],
+    queryFn: () => scoresApi.latest(patientId!),
+    enabled: !!patientId,
+  });
+
+  const formatMetric = (value?: string | number | null, interpretation?: string | null) => ({
+    value: value === null || value === undefined || value === '' ? '—' : String(value),
+    interpretation: interpretation && interpretation.trim() ? interpretation : '—',
+  });
+
+  const calculatedIndexes = [
+    {
+      label: 'HOMA-IR',
+      ...formatMetric(latestScores?.homaIr?.value, latestScores?.homaIr?.interpretation),
+    },
+    {
+      label: 'IMC',
+      ...formatMetric(latestScores?.imc?.value, latestScores?.imc?.interpretation),
+    },
+    {
+      label: 'HbA1c estimada',
+      ...formatMetric(latestScores?.estimatedHba1c?.value, latestScores?.estimatedHba1c?.interpretation),
+    },
+  ];
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-24">
@@ -475,6 +503,28 @@ export const PatientProfilePage = () => {
                 <p className="text-sm text-slate-700 leading-relaxed">{data.notes}</p>
               </div>
             )}
+
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-700">Índices Calculados</h3>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/escores?patientId=${data.id}`)}
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Recalcular
+                </button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {calculatedIndexes.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-100 p-3">
+                    <p className="text-xs text-slate-500">{item.label}</p>
+                    <p className="text-base font-semibold text-slate-700">{item.value}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.interpretation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
