@@ -43,4 +43,9 @@ export class PdfEngineService {
   execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
     return { action, tenantId, actorId, status: 'queued', payload };
   }
+
+  renderTemplatePdf(templateId: string, canvasJson: Record<string, unknown>) {
+    const content = `Template: ${templateId}\n${JSON.stringify(canvasJson, null, 2)}`;
+    return Buffer.from(content, 'utf-8');
+  }
 }
