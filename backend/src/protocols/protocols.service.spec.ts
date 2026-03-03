@@ -9,10 +9,28 @@ describe('ProtocolsService', () => {
     }).compile();
 
     const service = moduleRef.get(ProtocolsService);
-    service.create('t1', 'u1', { nome: 'x' });
-    service.create('t2', 'u2', { nome: 'y' });
+    service.create('t1', 'u1', {
+      name: 'x',
+      description: 'desc',
+      targetCondition: 'dm2',
+      status: 'draft',
+      steps: [],
+      medications: [],
+      inclusionCriteria: { all: [], any: [], exclusions: [] },
+      references: [],
+    });
+    service.create('t2', 'u2', {
+      name: 'y',
+      description: 'desc',
+      targetCondition: 'obesity',
+      status: 'active',
+      steps: [],
+      medications: [],
+      inclusionCriteria: { all: [], any: [], exclusions: [] },
+      references: [],
+    });
 
-    expect(service.list('t1')).toHaveLength(1);
-    expect(service.list('t2')).toHaveLength(1);
+    expect(service.list('t1', { page: 1, perPage: 20 })).toHaveLength(1);
+    expect(service.list('t2', { page: 1, perPage: 20 })).toHaveLength(1);
   });
 });
