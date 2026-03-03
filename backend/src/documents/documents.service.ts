@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { access, copyFile, mkdir, rm, unlink, writeFile } from 'fs/promises';
-import { basename, join, resolve } from 'path';
+import { basename, join, relative, resolve, sep } from 'path';
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
@@ -103,13 +103,24 @@ export class DocumentsService {
     }
 
     const safeFileName = basename(file.originalname || 'upload.bin').replace(/\s+/g, '_');
-    const fileName = `${randomUUID()}_${safeFileName}`;
-    const storageKey = `${tenantId}/${metadata.patientId}/${fileName}`;
+    const defaultFileName = `${randomUUID()}_${safeFileName}`;
     const uploadDir = join(UPLOADS_ROOT, tenantId, metadata.patientId);
-    const absoluteFilePath = join(UPLOADS_ROOT, storageKey);
 
-    await mkdir(uploadDir, { recursive: true });
-    await this.persistFile(absoluteFilePath, file);
+    let storageKey: string;
+    let absoluteFilePath: string | null = null;
+
+    if (file.path) {
+      const relativeStoragePath = relative(UPLOADS_ROOT, file.path);
+      if (!relativeStoragePath || relativeStoragePath.startsWith('..')) {
+        throw new BadRequestException('Caminho de upload inválido');
+      }
+      storageKey = relativeStoragePath.split(sep).join('/');
+    } else {
+      await mkdir(uploadDir, { recursive: true });
+      storageKey = `${tenantId}/${metadata.patientId}/${defaultFileName}`;
+      absoluteFilePath = join(UPLOADS_ROOT, storageKey);
+      await this.persistFile(absoluteFilePath, file);
+    }
 
     try {
       return await this.documentRepo().create({
@@ -127,7 +138,9 @@ export class DocumentsService {
         },
       });
     } catch (error) {
-      await rm(absoluteFilePath, { force: true });
+      if (absoluteFilePath) {
+        await rm(absoluteFilePath, { force: true });
+      }
       throw error;
     }
   }
