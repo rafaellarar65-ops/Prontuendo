@@ -41,6 +41,16 @@ enum AppointmentStatus {
   CANCELADO
 }
 
+enum DocumentCategory {
+  EXAME
+  LAUDO
+  PRESCRICAO
+  ATESTADO
+  TERMO
+  IMAGEM_CLINICA
+  OUTRO
+}
+
 enum DocumentTemplateCategory {
   RECEITUARIO
   ATESTADO
@@ -187,25 +197,27 @@ model Consultation {
 }
 
 model Document {
-  id             String        @id @default(cuid())
+  id             String           @id @default(cuid())
   tenantId       String
   patientId      String
   consultationId String?
-  category       String
+  uploadedById   String
+  category       DocumentCategory
   fileName       String
-  filePath       String
   mimeType       String
-  isFromPortal   Boolean       @default(false)
-  createdBy      String
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  patient        Patient       @relation(fields: [patientId], references: [id])
-  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  fileSize       Int
+  storageKey     String
+  description    String?
+  tags           String[]
+  isFromPortal   Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  patient        Patient          @relation(fields: [patientId], references: [id])
+  consultation   Consultation?    @relation(fields: [consultationId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, patientId, category])
   @@index([tenantId, patientId, createdAt])
-  @@index([tenantId, consultationId])
-  @@index([tenantId, category])
 }
 
 model Prescription {
