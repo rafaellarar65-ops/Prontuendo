@@ -482,8 +482,19 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <button type="button" onClick={() => setShowModal(true)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white">Novo exame</button>
+      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+          <p>Total de exames: <span className="font-semibold text-slate-700">{data?.length ?? 0}</span></p>
+          <p>Último registro: <span className="font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</span></p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+        >
+          <Plus size={13} />
+          Novo exame
+        </button>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Última data</p><p className="text-sm font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</p></div>
