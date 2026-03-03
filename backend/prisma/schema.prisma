@@ -20,10 +20,10 @@ enum ConsultationStatus {
 }
 
 enum PrescriptionStatus {
+  RASCUNHO
   ATIVA
   CANCELADA
   VENCIDA
-  DISPENSADA
 }
 
 model Tenant {
@@ -39,6 +39,7 @@ model Tenant {
   labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
   prescriptions     Prescription[]
+  medications       Medication[]
   drugTemplates     DrugTemplate[]
   clinicalScores    ClinicalScore[]
 }
@@ -160,20 +161,50 @@ model Prescription {
   patientId      String
   consultationId String?
   clinicianId    String
-  status         PrescriptionStatus @default(ATIVA)
-  issuedAt       DateTime           @default(now())
+  status         PrescriptionStatus @default(RASCUNHO)
   validUntil     DateTime?
-  items          Json
-  signature      Json?
-  pdfUrl         String?
+  notes          String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   tenant         Tenant             @relation(fields: [tenantId], references: [id])
   patient        Patient            @relation(fields: [patientId], references: [id])
   consultation   Consultation?      @relation(fields: [consultationId], references: [id])
+  items          PrescriptionItem[]
 
-  @@index([tenantId, patientId, issuedAt])
+  @@index([tenantId, patientId, createdAt])
+  @@index([tenantId, status])
   @@index([tenantId, consultationId])
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  medicationName String
+  dosage         String
+  frequency      String
+  route          String?
+  duration       String?
+  instructions   String?
+  quantity       Float?
+  unit           String?
+  sortOrder      Int
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId, sortOrder])
+}
+
+model Medication {
+  id               String  @id @default(cuid())
+  tenantId         String
+  name             String
+  activeIngredient String?
+  presentation     String?
+  category         String?
+  isControlled     Boolean @default(false)
+  tenant           Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, name])
+  @@index([tenantId, category])
 }
 
 model DrugTemplate {
