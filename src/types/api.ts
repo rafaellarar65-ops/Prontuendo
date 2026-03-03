@@ -57,8 +57,12 @@ export interface Appointment {
 
 export interface CreateAppointmentDto {
   patientId: string;
-  date: string;
-  time: string;
+  date?: string;
+  time?: string;
+  scheduledAt?: string;
+  clinicianId?: string;
+  durationMin?: number;
+  returnFromConsultationId?: string;
   type: Appointment['type'];
   notes?: string;
 }

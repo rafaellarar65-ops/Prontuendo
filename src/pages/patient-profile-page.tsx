@@ -13,9 +13,10 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
+import { useCreateAppointmentMutation } from '@/features/appointments/use-create-appointment-mutation';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
-import type { Patient, UpdatePatientDto } from '@/types/api';
+import type { CreateAppointmentDto, Patient, UpdatePatientDto } from '@/types/api';
 
 const calcAge = (bd?: string) =>
   bd ? Math.floor((Date.now() - new Date(bd).getTime()) / 3.156e10) : null;
@@ -134,23 +135,91 @@ const EditPatientModal = ({
 // ── Consultations Tab ───────────────────────────────────────────
 const ConsultationsTab = ({ patientId }: { patientId: string }) => {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { mutate, isPending } = useCreateAppointmentMutation();
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [form, setForm] = useState<Pick<CreateAppointmentDto, 'scheduledAt' | 'clinicianId' | 'durationMin' | 'notes'>>({
+    scheduledAt: '',
+    clinicianId: '',
+    durationMin: 30,
+    notes: '',
+  });
+  const [returnFromConsultationId, setReturnFromConsultationId] = useState<string | undefined>(undefined);
+
   const { data, isLoading } = useQuery({
     queryKey: ['consultations', patientId],
     queryFn: () => consultationApi.list(patientId),
   });
 
+  const openReturnModal = (consultationId?: string) => {
+    setReturnFromConsultationId(consultationId);
+    setForm((prev) => ({
+      ...prev,
+      scheduledAt: prev.scheduledAt || `${new Date().toISOString().slice(0, 10)}T08:00`,
+    }));
+    setShowReturnModal(true);
+  };
+
+  const closeReturnModal = () => {
+    setShowReturnModal(false);
+    setReturnFromConsultationId(undefined);
+  };
+
+  const set =
+    (key: 'scheduledAt' | 'clinicianId' | 'durationMin' | 'notes') =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const nextValue = key === 'durationMin' ? Number(e.target.value) : e.target.value;
+      setForm((prev) => ({ ...prev, [key]: nextValue }));
+    };
+
+  const submitReturnAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload: CreateAppointmentDto = {
+      patientId,
+      type: 'RETORNO',
+      scheduledAt: new Date(form.scheduledAt ?? '').toISOString(),
+      ...(form.clinicianId ? { clinicianId: form.clinicianId } : {}),
+      ...(typeof form.durationMin === 'number' ? { durationMin: form.durationMin } : {}),
+      ...(form.notes ? { notes: form.notes } : {}),
+      ...(returnFromConsultationId ? { returnFromConsultationId } : {}),
+    };
+
+    mutate(
+      payload,
+      {
+        onSuccess: () => {
+          closeReturnModal();
+          void qc.invalidateQueries({ queryKey: ['appointments'] });
+          void qc.invalidateQueries({ queryKey: ['appointments', patientId] });
+          void qc.invalidateQueries({ queryKey: ['patient', patientId] });
+          void qc.invalidateQueries({ queryKey: ['consultations', patientId] });
+        },
+      },
+    );
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-slate-500">{data?.length ?? 0} consulta(s)</p>
-        <button
-          onClick={() => navigate(`/consultas/nova?patientId=${patientId}`)}
-          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
-        >
-          <Plus size={13} /> Nova consulta
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openReturnModal()}
+            className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm hover:bg-emerald-100"
+          >
+            <Calendar size={13} /> Agendar Retorno
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/consultas/nova?patientId=${patientId}`)}
+            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            <Plus size={13} /> Nova consulta
+          </button>
+        </div>
       </div>
       {(!data || data.length === 0) ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-12 text-slate-400">
@@ -170,10 +239,63 @@ const ConsultationsTab = ({ patientId }: { patientId: string }) => {
                 </p>
                 <p className="text-xs text-slate-400">{new Date(c.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => openReturnModal(c.id)}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                Agendar retorno
+              </button>
               <ChevronRight size={14} className="text-slate-300" />
             </li>
           ))}
         </ul>
+      )}
+
+      {showReturnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={submitReturnAppointment} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Agendar retorno</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-700">patientId</label>
+                <input readOnly value={patientId} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">type</label>
+                <input readOnly value="RETORNO" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Duração (min)</label>
+                <input required min={5} type="number" value={form.durationMin ?? 30} onChange={set('durationMin')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">scheduledAt</label>
+                <input required type="datetime-local" value={form.scheduledAt ?? ''} onChange={set('scheduledAt')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">clinicianId</label>
+                <input required value={form.clinicianId ?? ''} onChange={set('clinicianId')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+              {returnFromConsultationId && (
+                <div className="col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-slate-700">returnFromConsultationId</label>
+                  <input readOnly value={returnFromConsultationId} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500" />
+                </div>
+              )}
+              <div className="col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-700">notes</label>
+                <textarea rows={3} value={form.notes ?? ''} onChange={set('notes')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={closeReturnModal} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button disabled={isPending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {isPending ? 'Agendando...' : 'Agendar retorno'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
