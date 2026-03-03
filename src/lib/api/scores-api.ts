@@ -61,12 +61,16 @@ export interface ScoreMetric {
   interpretation?: string | null;
 }
 
-export interface LatestScoresPayload {
-  homaIr?: ScoreMetric | null;
-  imc?: ScoreMetric | null;
-  estimatedHba1c?: ScoreMetric | null;
-  [key: string]: unknown;
+export interface LatestScoresByTypeItem {
+  scoreType: ScoreType;
+  value?: string | number | null;
+  classification?: string | null;
+  calculatedAt?: string | null;
+  hasEnoughData?: boolean;
+  message?: string | null;
 }
+
+export type LatestScoresByTypePayload = Array<LatestScoresByTypeItem>;
 
 export const scoresApi = {
   async calculate<TType extends ScoreType>(
@@ -101,8 +105,9 @@ export const scoresApi = {
     });
     return data;
   },
-  async latest(patientId: string): Promise<LatestScoresPayload> {
-    const { data } = await http.get<LatestScoresPayload>('/scores/latest', {
+
+  async latestByType(patientId: string): Promise<LatestScoresByTypePayload> {
+    const { data } = await http.get<LatestScoresByTypePayload>('/scores/latest-by-type', {
       params: { patientId },
     });
     return data;
