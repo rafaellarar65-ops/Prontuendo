@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ClinicalPageShell } from '@/components/app/clinical-page-shell';
 import { useCreateLabResultMutation } from '@/features/lab-results/use-create-lab-result-mutation';
 import { useLabResultsHistoryQuery } from '@/features/lab-results/use-lab-results-history-query';
+import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
 export const ExamsPage = () => {
   const [patientId, setPatientId] = useState('');
@@ -14,6 +15,7 @@ export const ExamsPage = () => {
   const { mutate: createExam, isPending: isCreating } = useCreateLabResultMutation();
 
   const isEmpty = Boolean(patientId) && !isLoading && !isError && (!data || data.length === 0);
+  const parsedValue = parseBrNumber(value);
 
   return (
     <ClinicalPageShell
@@ -34,14 +36,18 @@ export const ExamsPage = () => {
             <button
               type="button"
               className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
-              disabled={isCreating || !patientId || !examName || !value}
-              onClick={() => createExam({
-                patientId,
-                examName,
-                value: Number(value),
-                ...(unit ? { unit } : {}),
-                resultDate: new Date().toISOString(),
-              }, { onSuccess: () => { setExamName(''); setValue(''); setUnit(''); } })}
+              disabled={isCreating || !patientId || !examName || parsedValue === undefined}
+              onClick={() => {
+                if (parsedValue === undefined) return;
+
+                createExam({
+                  patientId,
+                  examName,
+                  value: parsedValue,
+                  ...(unit ? { unit } : {}),
+                  resultDate: new Date().toISOString(),
+                }, { onSuccess: () => { setExamName(''); setValue(''); setUnit(''); } });
+              }}
             >
               Criar
             </button>

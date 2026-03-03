@@ -17,6 +17,7 @@ import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioim
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
+import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
 const calcAge = (bd?: string) =>
   bd ? Math.floor((Date.now() - new Date(bd).getTime()) / 3.156e10) : null;
@@ -197,12 +198,21 @@ const getLabResultStatus = (result: LabResult) => {
 const ExamsTab = ({ patientId }: { patientId: string }) => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<CreateLabResultDto>({ patientId, examName: '', value: 0, unit: '', reference: '', resultDate: new Date().toISOString().slice(0, 10) });
+  const [valueInput, setValueInput] = useState('');
   const { data, isLoading } = useLabResultsQuery(patientId);
   const { mutate, isPending } = useCreateLabResultMutation();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutate({ ...form, patientId, resultDate: new Date(form.resultDate).toISOString(), ...(form.unit ? { unit: form.unit } : {}), ...(form.reference ? { reference: form.reference } : {}) }, { onSuccess: () => setShowModal(false) });
+    const parsedValue = parseBrNumber(valueInput);
+    if (parsedValue === undefined) return;
+
+    mutate({ ...form, patientId, value: parsedValue, resultDate: new Date(form.resultDate).toISOString(), ...(form.unit ? { unit: form.unit } : {}), ...(form.reference ? { reference: form.reference } : {}) }, {
+      onSuccess: () => {
+        setShowModal(false);
+        setValueInput('');
+      },
+    });
   };
 
   return (
@@ -239,7 +249,7 @@ const ExamsTab = ({ patientId }: { patientId: string }) => {
             <h3 className="font-semibold text-slate-800">Adicionar exame</h3>
             <input required placeholder="Nome do exame" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, examName: e.target.value }))} />
             <div className="grid grid-cols-2 gap-2">
-              <input required type="number" step="0.01" placeholder="Valor" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, value: Number(e.target.value) }))} />
+              <input required type="text" inputMode="decimal" placeholder="Valor" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={valueInput} onChange={(e) => setValueInput(e.target.value)} />
               <input placeholder="Unidade" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} />
               <input placeholder="Referência (ex: 70-99)" className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
               <input required type="date" value={form.resultDate.slice(0, 10)} className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, resultDate: e.target.value }))} />
@@ -307,10 +317,13 @@ const GlucoseTab = ({ patientId }: { patientId: string }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl" onSubmit={(e) => {
             e.preventDefault();
-            mutate({ patientId, value: Number(value), measuredAt: new Date().toISOString(), ...(notes ? { notes } : {}) }, { onSuccess: () => { setShowModal(false); setValue(''); setNotes(''); } });
+            const parsedValue = parseBrNumber(value);
+            if (parsedValue === undefined) return;
+
+            mutate({ patientId, value: parsedValue, measuredAt: new Date().toISOString(), ...(notes ? { notes } : {}) }, { onSuccess: () => { setShowModal(false); setValue(''); setNotes(''); } });
           }}>
             <h3 className="font-semibold text-slate-800">Registrar glicemia</h3>
-            <input required type="number" placeholder="mg/dL" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={value} onChange={(e) => setValue(e.target.value)} />
+            <input required type="text" inputMode="decimal" placeholder="mg/dL" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={value} onChange={(e) => setValue(e.target.value)} />
             <textarea placeholder="Observação (opcional)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
