@@ -3,6 +3,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { http } from '@/lib/api/http';
+import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
 interface GlucoseItem {
   id: string;
@@ -84,8 +85,8 @@ export const GlucosePage = () => {
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsed = Number(value);
-    if (!parsed) return;
+    const parsed = parseBrNumber(value);
+    if (parsed === undefined) return;
 
     try {
       await createMutation.mutateAsync({ value: parsed, notes });
@@ -172,8 +173,8 @@ export const GlucosePage = () => {
             <h2 className="text-lg font-bold text-slate-900">Novo registro de glicemia</h2>
             <form className="mt-3 space-y-3" onSubmit={handleCreate}>
               <input
-                type="number"
-                min={1}
+                type="text"
+                inputMode="decimal"
                 required
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
