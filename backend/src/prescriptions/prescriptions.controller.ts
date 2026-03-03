@@ -1,9 +1,25 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
-import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
+
+class RenewPrescriptionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string;
+}
+
+class ListPrescriptionsQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  patientId?: string;
+}
 
 @ApiTags('prescriptions')
 @ApiBearerAuth()
@@ -11,40 +27,45 @@ import { PrescriptionsService } from './prescriptions.service';
 export class PrescriptionsController {
   constructor(private readonly service: PrescriptionsService) {}
 
-  @Get()
-  @ApiOperation({ summary: 'Listar registros do módulo' })
-  list(@CurrentUser() user: AuthUser) {
-    return this.service.list(user.tenantId);
-  }
-
   @Post()
-  @ApiOperation({ summary: 'Criar registro do módulo' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.create(user.tenantId, user.sub, dto.payload);
+  @Roles('MEDICO')
+  @ApiOperation({ summary: 'Criar prescrição' })
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreatePrescriptionDto) {
+    return this.service.createPrescription(user.tenantId, user.sub, dto);
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: 'Atualizar registro do módulo' })
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.update(user.tenantId, id, dto.payload);
+  @Get()
+  @Roles('MEDICO', 'RECEPCAO')
+  @ApiOperation({ summary: 'Listar prescrições por paciente' })
+  list(@CurrentUser() user: AuthUser, @Query() query: ListPrescriptionsQueryDto) {
+    return this.service.listByPatient(user.tenantId, query.patientId);
   }
 
-  @Delete(':id')
-  @ApiOperation({ summary: 'Remover registro do módulo' })
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.remove(user.tenantId, id);
+  @Get('consultation/:consultationId')
+  @Roles('MEDICO')
+  @ApiOperation({ summary: 'Listar prescrições por consulta' })
+  listByConsultation(@CurrentUser() user: AuthUser, @Param('consultationId') consultationId: string) {
+    return this.service.listByConsultation(user.tenantId, consultationId);
   }
 
-  @Post('search-medication')
-  @ApiOperation({ summary: 'Busca de medicamentos (pharmacopoeia)' })
-  searchMedication(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('search-medication', user.tenantId, user.sub, dto.payload);
+  @Get('active')
+  @Roles('MEDICO')
+  @ApiOperation({ summary: 'Listar prescrições ativas por paciente' })
+  listActive(@CurrentUser() user: AuthUser, @Query() query: ListPrescriptionsQueryDto) {
+    return this.service.listActiveByPatient(user.tenantId, query.patientId);
   }
 
-  @Post(':id/sign')
-  @ApiOperation({ summary: 'Assinatura digital de prescrição' })
-  sign(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('sign', user.tenantId, user.sub, { id, ...dto.payload });
+  @Patch(':id/cancel')
+  @Roles('MEDICO')
+  @ApiOperation({ summary: 'Cancelar prescrição' })
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.cancel(user.tenantId, user.sub, id);
   }
 
+  @Post(':id/renew')
+  @Roles('MEDICO')
+  @ApiOperation({ summary: 'Renovar prescrição' })
+  renew(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RenewPrescriptionDto) {
+    return this.service.renew(user.tenantId, user.sub, id, dto.validUntil);
+  }
 }
