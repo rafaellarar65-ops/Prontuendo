@@ -350,6 +350,12 @@ type BioimpedanceFormState = {
   weightKg: string;
 };
 
+const parseBioimpedanceNumber = (value: string): number | undefined => {
+  const sanitizedValue = value.replace(/\s+/g, '');
+  if (!sanitizedValue) return undefined;
+  return parseBrNumber(sanitizedValue);
+};
+
 const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -503,13 +509,19 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl" onSubmit={(e) => {
             e.preventDefault();
+            const bodyFatPct = parseBioimpedanceNumber(form.bodyFatPct);
+            const muscleMassKg = parseBioimpedanceNumber(form.muscleMassKg);
+            const weightKg = parseBioimpedanceNumber(form.weightKg);
+
             createMutation.mutate({
               patientId,
               measuredAt: new Date(`${form.measuredAt}T00:00:00`).toISOString(),
-              bodyFatPct: Number(form.bodyFatPct) || 0,
-              muscleMassKg: Number(form.muscleMassKg) || 0,
-              weightKg: form.weightKg ? Number(form.weightKg) : null,
-              metadata,
+              bodyFatPct: bodyFatPct ?? 0,
+              muscleMassKg: muscleMassKg ?? 0,
+              weightKg: weightKg ?? null,
+              metadata: {
+                source: metadata.source === 'ia' ? 'ia' : 'manual',
+              },
             });
           }}>
             <div className="flex items-center justify-between">
@@ -556,15 +568,15 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
               </label>
               <label className="space-y-1 text-sm text-slate-700">
                 <span className="inline-flex items-center gap-2">Gordura corporal (%) {fieldsSource.bodyFatPct === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
-                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.bodyFatPct} onChange={(e) => setField('bodyFatPct', e.target.value)} />
+                <input type="text" inputMode="decimal" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.bodyFatPct} onChange={(e) => setField('bodyFatPct', e.target.value)} />
               </label>
               <label className="space-y-1 text-sm text-slate-700">
                 <span className="inline-flex items-center gap-2">Massa muscular (kg) {fieldsSource.muscleMassKg === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
-                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.muscleMassKg} onChange={(e) => setField('muscleMassKg', e.target.value)} />
+                <input type="text" inputMode="decimal" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.muscleMassKg} onChange={(e) => setField('muscleMassKg', e.target.value)} />
               </label>
               <label className="space-y-1 text-sm text-slate-700">
                 <span className="inline-flex items-center gap-2">Peso (kg) {fieldsSource.weightKg === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
-                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.weightKg} onChange={(e) => setField('weightKg', e.target.value)} />
+                <input type="text" inputMode="decimal" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.weightKg} onChange={(e) => setField('weightKg', e.target.value)} />
               </label>
             </div>
 
