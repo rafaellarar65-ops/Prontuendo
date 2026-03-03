@@ -14,10 +14,10 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
-import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
+import { useCreateBioimpedanceMutation } from '@/features/bioimpedance/use-create-bioimpedance-mutation';
 import { aiApi } from '@/lib/api/ai-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
-import type { BioimpedancePoint } from '@/types/bioimpedance';
+import type { BioimpedanceMetadata, BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
@@ -350,8 +350,12 @@ type BioimpedanceFormState = {
   weightKg: string;
 };
 
+type BioimpedanceDraftMetadata = BioimpedanceMetadata & {
+  originalFile: { name: string; type: string } | null;
+  fieldsSource: Partial<Record<keyof BioimpedanceFormState, BioFieldSource>>;
+};
+
 const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
-  const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
@@ -359,7 +363,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<Record<string, unknown>>({
+  const [metadata, setMetadata] = useState<BioimpedanceDraftMetadata>({
     source: 'manual',
     originalFile: null,
     fieldsSource: {},
@@ -371,17 +375,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
     weightKg: '',
   });
 
-  const createMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof bioimpedanceApi.create>[0]) => bioimpedanceApi.create(payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['bioimpedance', 'evolution', patientId] });
-      setShowModal(false);
-      setFileError(null);
-      setSelectedFileName(null);
-      setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
-      setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
-    },
-  });
+  const createMutation = useCreateBioimpedanceMutation();
 
   const extractMutation = useMutation({
     mutationFn: (text: string) => aiApi.extractBioimpedance(text),
@@ -429,7 +423,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
     setMetadata((prev) => ({
       ...prev,
       fieldsSource: {
-        ...(typeof prev.fieldsSource === 'object' && prev.fieldsSource !== null ? prev.fieldsSource as Record<string, BioFieldSource> : {}),
+        ...prev.fieldsSource,
         [name]: 'manual',
       },
     }));
@@ -478,7 +472,7 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
-  const fieldsSource = (metadata.fieldsSource as Record<string, BioFieldSource> | undefined) ?? {};
+  const fieldsSource = metadata.fieldsSource;
 
   return (
     <div className="space-y-3">
@@ -510,6 +504,14 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
               muscleMassKg: Number(form.muscleMassKg) || 0,
               weightKg: form.weightKg ? Number(form.weightKg) : null,
               metadata,
+            }, {
+              onSuccess: () => {
+                setShowModal(false);
+                setFileError(null);
+                setSelectedFileName(null);
+                setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
+                setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
+              },
             });
           }}>
             <div className="flex items-center justify-between">
