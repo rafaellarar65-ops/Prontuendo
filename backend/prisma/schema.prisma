@@ -75,6 +75,7 @@ model Patient {
   glucoseLogs      GlucoseLog[]
   labResults       LabResult[]
   bioimpedanceExams BioimpedanceExam[]
+  appointments     Appointment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
