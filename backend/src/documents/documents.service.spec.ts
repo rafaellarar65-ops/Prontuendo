@@ -1,11 +1,18 @@
 import { Test } from '@nestjs/testing';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { DocumentsService } from './documents.service';
 
 describe('DocumentsService', () => {
   it('deve criar e listar por tenant', async () => {
     const moduleRef = await Test.createTestingModule({
-      providers: [DocumentsService],
+      providers: [
+        DocumentsService,
+        {
+          provide: PrismaService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
     const service = moduleRef.get(DocumentsService);
