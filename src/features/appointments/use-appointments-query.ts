@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { appointmentsApi } from '@/lib/api/appointments-api';
 import { queryKeys } from '@/lib/query/query-keys';
 
-export const useAppointmentsQuery = (date?: string) =>
+export const useAppointmentsQuery = (date: string) =>
   useQuery({
-    queryKey: date ? queryKeys.appointmentsByDate(date) : queryKeys.appointments,
-    queryFn: () => appointmentsApi.list(date),
+    queryKey: queryKeys.appointmentsByDate(date),
+    queryFn: () => appointmentsApi.listByDate(date),
   });

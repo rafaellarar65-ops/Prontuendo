@@ -1,10 +1,26 @@
 import { http } from '@/lib/api/http';
 import type { Appointment, CreateAppointmentDto } from '@/types/api';
 
+type UpdateAppointmentDto = Partial<CreateAppointmentDto> & {
+  status?: Appointment['status'];
+};
+
 export const appointmentsApi = {
-  async list(date?: string): Promise<Appointment[]> {
+  async listByDate(date: string): Promise<Appointment[]> {
     const { data } = await http.get<Appointment[]>('/agenda', {
-      params: date ? { date } : undefined,
+      params: { date },
+    });
+    return data;
+  },
+  async listByPatient(patientId: string): Promise<Appointment[]> {
+    const { data } = await http.get<Appointment[]>('/agenda', {
+      params: { patientId },
+    });
+    return data;
+  },
+  async listByRange(start: string, end: string): Promise<Appointment[]> {
+    const { data } = await http.get<Appointment[]>('/agenda', {
+      params: { start, end },
     });
     return data;
   },
@@ -12,11 +28,20 @@ export const appointmentsApi = {
     const { data } = await http.post<Appointment>('/agenda', { payload: dto });
     return data;
   },
+  async update(id: string, dto: UpdateAppointmentDto): Promise<Appointment> {
+    const { data } = await http.patch<Appointment>(`/agenda/${id}`, {
+      payload: dto,
+    });
+    return data;
+  },
   async updateStatus(id: string, status: Appointment['status']): Promise<Appointment> {
     const { data } = await http.patch<Appointment>(`/agenda/${id}`, {
       payload: { status },
     });
     return data;
+  },
+  async cancel(id: string): Promise<Appointment> {
+    return this.updateStatus(id, 'CANCELADO');
   },
   async remove(id: string): Promise<void> {
     await http.delete(`/agenda/${id}`);

@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { appointmentsApi } from '@/lib/api/appointments-api';
 import { queryKeys } from '@/lib/query/query-keys';
-import type { CreateAppointmentDto } from '@/types/api';
 
-export const useCreateAppointmentMutation = () => {
+export const useCancelAppointmentMutation = () => {
   const qc = useQueryClient();
+
   return useMutation({
-    mutationFn: (dto: CreateAppointmentDto) => appointmentsApi.create(dto),
+    mutationFn: (id: string) => appointmentsApi.cancel(id),
     onSuccess: async (appointment) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: queryKeys.appointments }),
