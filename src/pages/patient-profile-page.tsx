@@ -325,6 +325,7 @@ const GlucoseTab = ({ patientId }: { patientId: string }) => {
 
 // ── Bioimpedance Tab ─────────────────────────────────────────────
 const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
+  const [showModal, setShowModal] = useState(false);
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
 
@@ -332,6 +333,16 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+        <p className="text-sm text-slate-500">{data?.length ?? 0} exame(s) de bioimpedância</p>
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+        >
+          <Plus size={13} /> Adicionar exame
+        </button>
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Última data</p><p className="text-sm font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</p></div>
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Gordura corporal</p><p className="text-sm font-semibold text-slate-700">{latest?.fatMassPercent ?? 0}%</p></div>
@@ -345,6 +356,17 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
         ))}
         {(!data || !data.length) && <li className="text-sm text-slate-400">Nenhum exame de bioimpedância.</li>}
       </ul>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Adicionar exame de bioimpedância</h3>
+            <p className="text-sm text-slate-500">O cadastro de exame de bioimpedância será disponibilizado em breve.</p>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
