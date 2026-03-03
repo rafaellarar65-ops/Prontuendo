@@ -374,7 +374,7 @@ export const PatientProfilePage = () => {
 
   const { data: latestScores } = useQuery({
     queryKey: ['scores', 'latest', patientId],
-    queryFn: () => scoresApi.latest(patientId!),
+    queryFn: () => scoresApi.latestByPatient(patientId!),
     enabled: !!patientId,
   });
 

@@ -2,6 +2,8 @@ import { http } from '@/lib/api/http';
 
 export type ScoreType = 'imc' | 'chads2vasc' | 'hasbled';
 
+export type ScoreName = 'HOMA-IR' | 'FINDRISC' | 'BMI' | 'CKD-EPI' | 'BMR';
+
 export interface ImcScoreInput {
   weightKg: number;
   heightCm: number;
@@ -46,12 +48,15 @@ export interface ClinicalScoreResult<TType extends ScoreType = ScoreType> {
   breakdown?: Record<string, number | string | boolean>;
 }
 
-export interface ClinicalScoreHistoryRecord<TType extends ScoreType = ScoreType> {
+export interface ClinicalScoreHistoryRecord<TName extends ScoreName = ScoreName> {
   id: string;
   patientId: string;
-  scoreType: TType;
-  inputs: ClinicalScoreInput<TType>;
-  result: ClinicalScoreResult<TType>;
+  scoreName: TName;
+  inputs: Record<string, unknown>;
+  result: {
+    value: string | number;
+    interpretation?: string | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -65,7 +70,7 @@ export interface LatestScoresPayload {
   homaIr?: ScoreMetric | null;
   imc?: ScoreMetric | null;
   estimatedHba1c?: ScoreMetric | null;
-  [key: string]: unknown;
+  [key: ScoreName | string]: unknown;
 }
 
 export const scoresApi = {
@@ -82,26 +87,20 @@ export const scoresApi = {
     return data;
   },
 
-  async history<TType extends ScoreType = ScoreType>(
+  async history<TName extends ScoreName = ScoreName>(
     patientId: string,
-    scoreType?: TType,
-  ): Promise<Array<ClinicalScoreHistoryRecord<TType>>> {
-    const { data } = await http.get<Array<ClinicalScoreHistoryRecord<TType>>>('/scores', {
+    scoreName?: TName,
+  ): Promise<Array<ClinicalScoreHistoryRecord<TName>>> {
+    const { data } = await http.get<Array<ClinicalScoreHistoryRecord<TName>>>('/scores', {
       params: {
         patientId,
-        ...(scoreType ? { scoreType } : {}),
+        ...(scoreName ? { scoreName } : {}),
       },
     });
     return data;
   },
 
-  async latest(patientId: string): Promise<ClinicalScoreHistoryRecord | null> {
-    const { data } = await http.get<ClinicalScoreHistoryRecord | null>('/scores/latest', {
-      params: { patientId },
-    });
-    return data;
-  },
-  async latest(patientId: string): Promise<LatestScoresPayload> {
+  async latestByPatient(patientId: string): Promise<LatestScoresPayload> {
     const { data } = await http.get<LatestScoresPayload>('/scores/latest', {
       params: { patientId },
     });
