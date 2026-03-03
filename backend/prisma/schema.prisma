@@ -40,6 +40,7 @@ model Tenant {
   bioimpedanceExams BioimpedanceExam[]
   prescriptions     Prescription[]
   drugTemplates     DrugTemplate[]
+  clinicalScores    ClinicalScore[]
 }
 
 model User {
@@ -84,10 +85,27 @@ model Patient {
   labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
   prescriptions     Prescription[]
+  clinicalScores    ClinicalScore[]
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
   @@index([tenantId, lifecycle])
+}
+
+model ClinicalScore {
+  id           String   @id @default(cuid())
+  tenantId     String
+  patientId    String
+  scoreType    String
+  inputs       Json
+  result       Json
+  calculatedAt DateTime @default(now())
+  clinicianId  String?
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  patient      Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([tenantId, patientId, scoreType])
+  @@index([tenantId, patientId, calculatedAt])
 }
 
 model RefreshToken {
