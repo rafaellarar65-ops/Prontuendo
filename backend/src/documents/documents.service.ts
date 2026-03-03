@@ -21,14 +21,13 @@ declare global {
   }
 }
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
-
 export type DocumentUploadMetadata = {
   patientId: string;
   category: string;
   description: string;
   consultationId?: string;
   isFromPortal?: boolean;
+  uploadedById?: string;
 };
 
 export type DocumentFilters = {
@@ -43,12 +42,17 @@ const UPLOADS_ROOT = resolve(process.cwd(), 'uploads');
 
 @Injectable()
 export class DocumentsService {
-  private readonly store: Item[] = [];
-
   constructor(private readonly prisma: PrismaService) {}
 
   private documentRepo() {
     return (this.prisma as any).document;
+  }
+
+  private async ensureTenantExists(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant não encontrado');
+    }
   }
 
   private async ensurePatientInTenant(tenantId: string, patientId: string) {
@@ -89,6 +93,7 @@ export class DocumentsService {
   async upload(tenantId: string, metadata: DocumentUploadMetadata, file: Express.Multer.File) {
     this.validateUploadFile(file);
 
+    await this.ensureTenantExists(tenantId);
     await this.ensurePatientInTenant(tenantId, metadata.patientId);
 
     if (metadata.consultationId) {
@@ -134,7 +139,8 @@ export class DocumentsService {
           storageKey,
           fileName: safeFileName,
           mimeType: file.mimetype,
-          size: file.size,
+          fileSize: file.size,
+          uploadedById: metadata.uploadedById ?? null,
         },
       });
     } catch (error) {
@@ -178,7 +184,8 @@ export class DocumentsService {
 
   async download(tenantId: string, documentId: string) {
     const document = await this.findById(tenantId, documentId);
-    const absolutePath = join(UPLOADS_ROOT, document.storageKey);
+    const storageKey = document.storageKey ?? document.filePath;
+    const absolutePath = join(UPLOADS_ROOT, storageKey);
 
     try {
       await access(absolutePath);
@@ -191,47 +198,12 @@ export class DocumentsService {
 
   async delete(tenantId: string, documentId: string) {
     const document = await this.findById(tenantId, documentId);
-    const absolutePath = join(UPLOADS_ROOT, document.storageKey);
+    const storageKey = document.storageKey ?? document.filePath;
+    const absolutePath = join(UPLOADS_ROOT, storageKey);
 
     await this.documentRepo().delete({ where: { id: document.id } });
     await unlink(absolutePath).catch(() => undefined);
 
     return { deleted: true };
-  }
-
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
-  }
-
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
-    this.store.push(item);
-    return item;
-  }
-
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (!item) {
-      return null;
-    }
-
-    item.payload = { ...item.payload, ...payload };
-    item.updatedAt = new Date().toISOString();
-    return item;
-  }
-
-  remove(tenantId: string, id: string) {
-    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (index < 0) {
-      return { deleted: false };
-    }
-
-    this.store.splice(index, 1);
-    return { deleted: true };
-  }
-
-  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
   }
 }
