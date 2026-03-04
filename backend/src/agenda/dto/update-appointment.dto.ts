@@ -1,13 +1,12 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 
+import { AppointmentStatus } from './appointment.enums';
 import { CreateAppointmentDto } from './create-appointment.dto';
-import { APPOINTMENT_STATUS, AppointmentStatus } from './appointment.types';
 
 export class UpdateAppointmentDto extends PartialType(CreateAppointmentDto) {
-  @ApiPropertyOptional({ enum: APPOINTMENT_STATUS })
+  @ApiPropertyOptional({ enum: AppointmentStatus })
   @IsOptional()
-  @IsString()
-  @IsIn(APPOINTMENT_STATUS)
+  @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
 }
