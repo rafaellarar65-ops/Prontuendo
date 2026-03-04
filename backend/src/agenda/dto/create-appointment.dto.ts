@@ -1,33 +1,44 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 
-import { APPOINTMENT_TYPES, AppointmentType } from './appointment.types';
+import { AppointmentType } from './appointment.enums';
 
 export class CreateAppointmentDto {
   @ApiProperty()
   @IsString()
   patientId!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  patientName?: string;
-
-  @ApiProperty({ example: '2026-03-03' })
-  @IsString()
+  @ApiProperty({ type: String, format: 'date' })
+  @IsDateString()
   date!: string;
 
-  @ApiProperty({ example: '09:30' })
+  @ApiProperty({ description: 'Horário inicial. Também aceita o campo `time` do frontend.' })
+  @Transform(({ value, obj }) => value ?? obj.time)
   @IsString()
-  time!: string;
+  startTime!: string;
 
-  @ApiProperty({ enum: APPOINTMENT_TYPES })
-  @IsString()
-  @IsIn(APPOINTMENT_TYPES)
+  @ApiProperty({ enum: AppointmentType })
+  @IsEnum(AppointmentType)
   type!: AppointmentType;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  endTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serviceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  roomId?: string;
 }
