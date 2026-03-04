@@ -1,96 +1,52 @@
 import { randomUUID } from 'crypto';
 
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+import { PrismaService } from '../prisma/prisma.service';
+
+type AppointmentStatus = 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+
+type Item = {
+  id: string;
+  tenantId: string;
+  payload: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 @Injectable()
 export class AgendaService {
   private readonly store: Item[] = [];
 
-  private parseDateTime(date: string, startTime: string) {
-    const [year, month, day] = date.split('-').map((value) => Number(value));
-    const [hours, minutes] = startTime.split(':').map((value) => Number(value));
-
-    if (!year || !month || !day || Number.isNaN(hours) || Number.isNaN(minutes)) {
-      throw new BadRequestException('Data ou horário inválido para agendamento.');
-    }
-
-    return new Date(year, month - 1, day, hours, minutes, 0, 0);
-  }
-
-  private getSchedulingFields(payload: Record<string, unknown>) {
-    return {
-      clinicianId: typeof payload.clinicianId === 'string' ? payload.clinicianId : null,
-      date: typeof payload.date === 'string' ? payload.date : null,
-      startTime: typeof payload.startTime === 'string' ? payload.startTime : null,
-      status: typeof payload.status === 'string' ? payload.status : null,
-    };
-  }
-
-  private validateNotPast(date: string, startTime: string) {
-    const slotDateTime = this.parseDateTime(date, startTime);
-    if (slotDateTime.getTime() < Date.now()) {
-      throw new BadRequestException('Não é permitido agendar ou reagendar para um horário passado.');
-    }
-  }
-
-  private findAppointmentConflict(params: {
-    tenantId: string;
-    clinicianId: string;
-    date: string;
-    startTime: string;
-    excludedId?: string;
-  }) {
-    const { tenantId, clinicianId, date, startTime, excludedId } = params;
-
-    return this.store.find((item) => {
-      if (item.tenantId !== tenantId || item.id === excludedId) {
-        return false;
-      }
-
-      const entry = this.getSchedulingFields(item.payload);
-      return (
-        entry.clinicianId === clinicianId
-        && entry.date === date
-        && entry.startTime === startTime
-        && entry.status !== 'CANCELADO'
-      );
-    });
-  }
-
-  private validateSchedulingRules(tenantId: string, payload: Record<string, unknown>, excludedId?: string) {
-    const { clinicianId, date, startTime } = this.getSchedulingFields(payload);
-
-    if (!clinicianId || !date || !startTime) {
-      return;
-    }
-
-    this.validateNotPast(date, startTime);
-
-    const conflict = this.findAppointmentConflict({
-      tenantId,
-      clinicianId,
-      date,
-      startTime,
-      excludedId,
-    });
-
-    if (conflict) {
-      throw new ConflictException('Já existe agendamento para este profissional na mesma data e horário.');
-    }
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   list(tenantId: string) {
     return this.store.filter((item) => item.tenantId === tenantId);
   }
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    this.validateSchedulingRules(tenantId, payload);
-
+  async create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
     const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
-    this.store.push(item);
+    const status = this.extractStatus(payload);
+    const item: Item = { id: randomUUID(), tenantId, payload: { ...payload, status }, createdBy: actorId, createdAt: now, updatedAt: now };
+
+    await this.prisma.$transaction(async (trx) => {
+      this.store.push(item);
+      await trx.activityLog.create({
+        data: {
+          tenantId,
+          actorId,
+          action: 'CREATE',
+          resource: 'agenda',
+          metadata: {
+            appointmentId: item.id,
+            patientId: item.payload.patientId ?? null,
+            status,
+          },
+        },
+      });
+    });
+
     return item;
   }
 
@@ -100,20 +56,58 @@ export class AgendaService {
       return null;
     }
 
-    const nextPayload = { ...item.payload, ...payload };
-    const current = this.getSchedulingFields(item.payload);
-    const next = this.getSchedulingFields(nextPayload);
-    const isCancelOnly = next.status === 'CANCELADO'
-      && current.clinicianId === next.clinicianId
-      && current.date === next.date
-      && current.startTime === next.startTime;
+    item.payload = { ...item.payload, ...payload };
+    item.updatedAt = new Date().toISOString();
+    return item;
+  }
 
-    if (!isCancelOnly) {
-      this.validateSchedulingRules(tenantId, nextPayload, id);
+  async updateStatus(tenantId: string, actorId: string, id: string, nextStatus: AppointmentStatus) {
+    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
+    if (!item) {
+      return null;
     }
 
-    item.payload = nextPayload;
+    const previousStatus = this.extractStatus(item.payload);
+    item.payload = { ...item.payload, status: nextStatus };
     item.updatedAt = new Date().toISOString();
+
+    const statusAction = this.getStatusAction(nextStatus, previousStatus);
+
+    await this.prisma.$transaction(async (trx) => {
+      await trx.activityLog.create({
+        data: {
+          tenantId,
+          actorId,
+          action: statusAction,
+          resource: 'agenda',
+          metadata: {
+            appointmentId: item.id,
+            patientId: item.payload.patientId ?? null,
+            from: previousStatus,
+            to: nextStatus,
+          },
+        },
+      });
+
+      if (nextStatus === 'CANCELADO') {
+        await trx.activityLog.create({
+          data: {
+            tenantId,
+            actorId,
+            action: 'CANCEL_AUDIT',
+            resource: 'agenda',
+            metadata: {
+              appointmentId: item.id,
+              patientId: item.payload.patientId ?? null,
+              from: previousStatus,
+              to: nextStatus,
+              auditScope: 'CLINICAL_OPERATIONAL',
+            },
+          },
+        });
+      }
+    });
+
     return item;
   }
 
@@ -129,5 +123,38 @@ export class AgendaService {
 
   execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
     return { action, tenantId, actorId, status: 'queued', payload };
+  }
+
+  private extractStatus(payload: Record<string, unknown>): AppointmentStatus {
+    const status = payload.status;
+    if (status === 'CONFIRMADO' || status === 'EM_ANDAMENTO' || status === 'CONCLUIDO' || status === 'CANCELADO') {
+      return status;
+    }
+
+    return 'AGENDADO';
+  }
+
+  private getStatusAction(nextStatus: AppointmentStatus, previousStatus: AppointmentStatus) {
+    if (nextStatus === 'CONFIRMADO') {
+      return 'CONFIRM';
+    }
+
+    if (nextStatus === 'EM_ANDAMENTO') {
+      return 'START';
+    }
+
+    if (nextStatus === 'CONCLUIDO') {
+      return 'COMPLETE';
+    }
+
+    if (nextStatus === 'CANCELADO') {
+      return 'CANCEL';
+    }
+
+    if (nextStatus !== previousStatus) {
+      return 'STATUS_CHANGE';
+    }
+
+    return 'STATUS_CHANGE';
   }
 }
