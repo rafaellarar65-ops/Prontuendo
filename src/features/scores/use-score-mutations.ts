@@ -1,21 +1,24 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { scoresApi, type ClinicalScoreInput, type ClinicalScoreResult, type ScoreType } from '@/lib/api/scores-api';
+import { scoresApi } from '@/lib/api/scores-api';
 import { queryKeys } from '@/lib/query/query-keys';
+import type { ScorePayload } from '@/types/clinical-modules';
 
-interface CalculateScoreVariables {
-  patientId: string;
-  scoreType: ScoreType;
-  inputs: ClinicalScoreInput;
-}
-
-export const useCalculateScoreMutation = () => {
+export const useCreateScoreMutation = () => {
   const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ScorePayload) => scoresApi.create(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.scores });
+    },
+  });
+};
 
-  return useMutation<ClinicalScoreResult, Error, CalculateScoreVariables>({
-    mutationFn: (variables) => scoresApi.calculate(variables.patientId, variables.scoreType, variables.inputs),
-    onSuccess: (_, variables) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.scoresHistory(variables.patientId, variables.scoreType) });
-      void qc.invalidateQueries({ queryKey: queryKeys.scoresLatest(variables.patientId) });
+export const useUpdateScoreMutation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<ScorePayload> }) => scoresApi.update(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.scores });
     },
   });
 };
