@@ -25,12 +25,7 @@ export class AgendaController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar registro do módulo' })
-  async update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    const status = dto.payload.status;
-    if (status === 'AGENDADO' || status === 'CONFIRMADO' || status === 'EM_ANDAMENTO' || status === 'CONCLUIDO' || status === 'CANCELADO') {
-      return this.service.updateStatus(user.tenantId, user.sub, id, status);
-    }
-
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
     return this.service.update(user.tenantId, id, dto.payload);
   }
 
