@@ -1,188 +1,91 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
 
-type AppointmentType = 'PRIMEIRA_CONSULTA' | 'RETORNO' | 'TELECONSULTA' | 'EXAME';
-type AppointmentStatus = 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { ListAppointmentsDto } from './dto/list-appointments.dto';
+import { AppointmentStatus } from './dto/appointment.types';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 
-type AppointmentWithPatient = {
+type AppointmentRecord = {
   id: string;
   tenantId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
   patientId: string;
-  clinicianId: string;
-  date: Date;
-  startTime: string;
-  type: AppointmentType;
+  patientName?: string;
+  date: string;
+  time: string;
+  type: CreateAppointmentDto['type'];
   status: AppointmentStatus;
-  notes: string | null;
-  patient: {
-    fullName: string;
-  };
-};
-
-type AppointmentDelegate = {
-  findMany(args: Record<string, unknown>): Promise<AppointmentWithPatient[]>;
-  findFirst(args: Record<string, unknown>): Promise<AppointmentWithPatient | null>;
-  create(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
-  update(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
-  delete(args: Record<string, unknown>): Promise<AppointmentWithPatient>;
+  notes?: string;
 };
 
 @Injectable()
 export class AgendaService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly store: AppointmentRecord[] = [];
 
-  private get appointment(): AppointmentDelegate {
-    return (this.prisma as unknown as { appointment: AppointmentDelegate }).appointment;
+  list(tenantId: string, query: ListAppointmentsDto = {}) {
+    return this.store.filter((item) => {
+      if (item.tenantId !== tenantId) return false;
+      if (query.date && item.date !== query.date) return false;
+      if (query.patientId && item.patientId !== query.patientId) return false;
+      return true;
+    });
   }
 
-  private readonly patientInclude = {
-    patient: {
-      select: {
-        fullName: true,
-      },
-    },
-  };
+  findByDate(tenantId: string, date: string) {
+    return this.list(tenantId, { date });
+  }
 
-  private mapAppointment(appointment: AppointmentWithPatient) {
-    return {
-      id: appointment.id,
-      patientId: appointment.patientId,
-      patientName: appointment.patient.fullName,
-      date: appointment.date.toISOString(),
-      time: appointment.startTime,
-      type: appointment.type,
-      status: appointment.status,
-      notes: appointment.notes ?? undefined,
+  findByPatient(tenantId: string, patientId: string) {
+    return this.list(tenantId, { patientId });
+  }
+
+  create(tenantId: string, clinicianId: string, dto: CreateAppointmentDto) {
+    const now = new Date().toISOString();
+    const item: AppointmentRecord = {
+      id: randomUUID(),
+      tenantId,
+      createdBy: clinicianId,
+      createdAt: now,
+      updatedAt: now,
+      patientId: dto.patientId,
+      patientName: dto.patientName,
+      date: dto.date,
+      time: dto.time,
+      type: dto.type,
+      status: 'AGENDADO',
+      notes: dto.notes,
     };
+
+    this.store.push(item);
+    return item;
   }
 
-  async findAll(tenantId: string) {
-    const appointments = await this.appointment.findMany({
-      where: { tenantId },
-      include: this.patientInclude,
-      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    });
-
-    return appointments.map((appointment) => this.mapAppointment(appointment));
-  }
-
-  async findByDate(tenantId: string, date: string) {
-    const dayStart = new Date(`${date}T00:00:00.000Z`);
-    const dayEnd = new Date(`${date}T23:59:59.999Z`);
-
-    const appointments = await this.appointment.findMany({
-      where: {
-        tenantId,
-        date: {
-          gte: dayStart,
-          lte: dayEnd,
-        },
-      },
-      include: this.patientInclude,
-      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    });
-
-    return appointments.map((appointment) => this.mapAppointment(appointment));
-  }
-
-  async findByPatient(tenantId: string, patientId: string) {
-    const appointments = await this.appointment.findMany({
-      where: { tenantId, patientId },
-      include: this.patientInclude,
-      orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
-    });
-
-    return appointments.map((appointment) => this.mapAppointment(appointment));
-  }
-
-  async create(tenantId: string, clinicianId: string, payload: Record<string, unknown>) {
-    const created = await this.appointment.create({
-      data: {
-        tenantId,
-        clinicianId,
-        patientId: payload.patientId,
-        date: new Date(String(payload.date)),
-        startTime: String(payload.time),
-        endTime: payload.endTime ? String(payload.endTime) : null,
-        type: payload.type,
-        status: (payload.status as AppointmentStatus | undefined) ?? 'AGENDADO',
-        notes: payload.notes ? String(payload.notes) : null,
-        serviceId: payload.serviceId ? String(payload.serviceId) : null,
-        roomId: payload.roomId ? String(payload.roomId) : null,
-      },
-      include: this.patientInclude,
-    });
-
-    return this.mapAppointment(created);
-  }
-
-  async update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    const current = await this.appointment.findFirst({
-      where: { id, tenantId },
-      include: this.patientInclude,
-    });
-
-    if (!current) {
-      throw new NotFoundException('Agendamento não encontrado');
+  update(tenantId: string, id: string, dto: UpdateAppointmentDto) {
+    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
+    if (!item) {
+      return null;
     }
 
-    const updated = await this.appointment.update({
-      where: { id },
-      data: {
-        patientId: payload.patientId,
-        date: payload.date ? new Date(String(payload.date)) : undefined,
-        startTime: payload.time ? String(payload.time) : undefined,
-        endTime: payload.endTime ? String(payload.endTime) : undefined,
-        type: payload.type,
-        status: payload.status,
-        notes: payload.notes === undefined ? undefined : payload.notes ? String(payload.notes) : null,
-        serviceId: payload.serviceId === undefined ? undefined : payload.serviceId ? String(payload.serviceId) : null,
-        roomId: payload.roomId === undefined ? undefined : payload.roomId ? String(payload.roomId) : null,
-      },
-      include: this.patientInclude,
-    });
-
-    return this.mapAppointment(updated);
+    Object.assign(item, dto);
+    item.updatedAt = new Date().toISOString();
+    return item;
   }
 
-  async updateStatus(tenantId: string, id: string, status: AppointmentStatus) {
-    const current = await this.appointment.findFirst({
-      where: { id, tenantId },
-      include: this.patientInclude,
-    });
-
-    if (!current) {
-      throw new NotFoundException('Agendamento não encontrado');
-    }
-
-    const updated = await this.appointment.update({
-      where: { id },
-      data: { status },
-      include: this.patientInclude,
-    });
-
-    return this.mapAppointment(updated);
+  updateStatus(tenantId: string, id: string, status: AppointmentStatus) {
+    return this.update(tenantId, id, { status });
   }
 
-  async remove(tenantId: string, id: string) {
-    const current = await this.appointment.findFirst({
-      where: { id, tenantId },
-      include: this.patientInclude,
-    });
-
-    if (!current) {
-      throw new NotFoundException('Agendamento não encontrado');
+  remove(tenantId: string, id: string) {
+    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
+    if (index < 0) {
+      return { deleted: false };
     }
 
-    await this.appointment.delete({
-      where: { id },
-    });
-
+    this.store.splice(index, 1);
     return { deleted: true };
-  }
-
-  async list(tenantId: string) {
-    return this.findAll(tenantId);
   }
 }
