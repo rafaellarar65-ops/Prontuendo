@@ -1,10 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { ListAppointmentsDto } from './dto/list-appointments.dto';
-import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
 import { AgendaService } from './agenda.service';
 
 @ApiTags('agenda')
@@ -15,20 +13,20 @@ export class AgendaController {
 
   @Get()
   @ApiOperation({ summary: 'Listar registros do módulo' })
-  list(@CurrentUser() user: AuthUser, @Query() query: ListAppointmentsDto) {
-    return this.service.list(user.tenantId, query);
+  list(@CurrentUser() user: AuthUser) {
+    return this.service.list(user.tenantId);
   }
 
   @Post()
   @ApiOperation({ summary: 'Criar registro do módulo' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateAppointmentDto) {
-    return this.service.create(user.tenantId, user.sub, dto);
+  create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
+    return this.service.create(user.tenantId, user.sub, dto.payload);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar registro do módulo' })
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
-    return this.service.update(user.tenantId, id, dto);
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
+    return this.service.update(user.tenantId, id, dto.payload);
   }
 
   @Delete(':id')
