@@ -15,19 +15,20 @@ export interface ClinicPayload {
 export interface ScorePayload {
   label: string;
   value: string;
-  patientId?: string;
-  scoreType?: string;
-  inputs?: Record<string, string | number | boolean>;
-  result?: {
-    scoreValue: string;
-    interpretation: string;
-    riskLevel: 'verde' | 'amarelo' | 'laranja' | 'vermelho';
-  };
 }
+
+export type ProtocolStatus = 'ATIVO' | 'INATIVO' | 'RASCUNHO';
 
 export interface ProtocolPayload {
   name: string;
-  status?: string;
+  description?: string;
+  targetCondition?: string;
+  version?: number;
+  status?: ProtocolStatus;
+  steps?: unknown;
+  medications?: unknown;
+  inclusionCriteria?: unknown;
+  references?: string | null;
 }
 
 export interface LabResult {
