@@ -1,24 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
-export class CreatePrescriptionItemDto {
+export class PrescriptionItemDto {
   @ApiProperty()
   @IsString()
-  medicationName!: string;
+  medicationId!: string;
 
   @ApiProperty()
   @IsString()
-  dosage!: string;
-
-  @ApiProperty()
-  @IsString()
-  frequency!: string;
+  name!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  route?: string;
+  dosage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  frequency?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -29,18 +36,6 @@ export class CreatePrescriptionItemDto {
   @IsOptional()
   @IsString()
   instructions?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  quantity?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  unit?: string;
 }
 
 export class CreatePrescriptionDto {
@@ -53,19 +48,24 @@ export class CreatePrescriptionDto {
   @IsString()
   consultationId?: string;
 
-  @ApiProperty({ type: [CreatePrescriptionItemDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreatePrescriptionItemDto)
-  items!: CreatePrescriptionItemDto[];
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  issuedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ type: String, format: 'date-time' })
-  @IsOptional()
-  @IsString()
-  validUntil?: string;
+  @ApiProperty({ type: [PrescriptionItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PrescriptionItemDto)
+  items!: PrescriptionItemDto[];
 }

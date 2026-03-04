@@ -1,16 +1,45 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-
 import { PrismaService } from '../prisma/prisma.service';
+import { CreatePrescriptionDto } from './dto/create-prescription.dto';
+import { ListPrescriptionsDto } from './dto/list-prescriptions.dto';
+import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 
 type PrescriptionStatus = 'ATIVA' | 'CANCELADA';
 
+type PrescriptionRecord = {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  clinicianId: string;
+  consultationId?: string | null;
+  issuedAt?: Date;
+  validUntil?: Date | null;
+  notes?: string | null;
+  status: PrescriptionStatus;
+  items?: Array<Record<string, unknown>>;
+};
+
 type PrescriptionDelegate = {
-  create(args: Record<string, unknown>): Promise<any>;
-  findMany(args: Record<string, unknown>): Promise<any[]>;
-  findFirst(args: Record<string, unknown>): Promise<any | null>;
-  update(args: Record<string, unknown>): Promise<any>;
-  updateMany(args: Record<string, unknown>): Promise<{ count: number }>;
+  create(args: Record<string, unknown>): Promise<PrescriptionRecord>;
+  findMany(args: Record<string, unknown>): Promise<PrescriptionRecord[]>;
+  findFirst(args: Record<string, unknown>): Promise<PrescriptionRecord | null>;
+  update(args: Record<string, unknown>): Promise<PrescriptionRecord>;
+};
+
+type PrescriptionItemDelegate = {
+  deleteMany(args: Record<string, unknown>): Promise<{ count: number }>;
+};
+
+type MedicationDelegate = {
+  findMany(args: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+};
+
+type PrismaTransaction = {
+  prescription: PrescriptionDelegate;
+  prescriptionItem: PrescriptionItemDelegate;
+  activityLog: {
+    create(args: Record<string, unknown>): Promise<unknown>;
+  };
 };
 
 @Injectable()
@@ -21,142 +50,204 @@ export class PrescriptionsService {
     return (this.prisma as unknown as { prescription: PrescriptionDelegate }).prescription;
   }
 
-  async create(tenantId: string, clinicianId: string, dto: Record<string, unknown>) {
-    const data = {
+  private get medication(): MedicationDelegate {
+    return (this.prisma as unknown as { medication: MedicationDelegate }).medication;
+  }
+
+  async create(tenantId: string, clinicianId: string, dto: CreatePrescriptionDto) {
+    return this.prisma.$transaction(async (trx) => {
+      const client = trx as unknown as PrismaTransaction;
+
+      const prescription = await client.prescription.create({
+        data: {
+          tenantId,
+          clinicianId,
+          patientId: dto.patientId,
+          consultationId: dto.consultationId ?? null,
+          issuedAt: dto.issuedAt ? new Date(dto.issuedAt) : new Date(),
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+          status: 'ATIVA',
+          notes: dto.notes ?? null,
+          items: {
+            createMany: {
+              data: dto.items,
+            },
+          },
+        },
+        include: { items: true },
+      });
+
+      await client.activityLog.create({
+        data: {
+          tenantId,
+          actorId: clinicianId,
+          action: 'CREATE',
+          resource: 'prescription',
+          metadata: {
+            prescriptionId: prescription.id,
+            patientId: prescription.patientId,
+            consultationId: prescription.consultationId,
+          },
+        },
+      });
+
+      return prescription;
+    });
+  }
+
+  findAll(tenantId: string, query: ListPrescriptionsDto) {
+    const where: Record<string, unknown> = {
       tenantId,
-      clinicianId,
-      patientId: dto.patientId,
-      consultationId: dto.consultationId ?? null,
-      issuedAt: dto.issuedAt ? new Date(String(dto.issuedAt)) : new Date(),
-      validUntil: dto.validUntil ? new Date(String(dto.validUntil)) : null,
-      status: (dto.status as PrescriptionStatus | undefined) ?? 'ATIVA',
-      notes: dto.notes ?? null,
-      items: (dto.items ?? []) as Prisma.InputJsonValue,
+      patientId: query.patientId,
+      status: query.status,
     };
 
-    const prescription = await this.prescription.create({ data });
-
-    await this.prisma.activityLog.create({
-      data: {
-        tenantId,
-        actorId: clinicianId,
-        action: 'CREATE',
-        resource: 'prescription',
-        metadata: {
-          prescriptionId: prescription.id,
-          patientId: prescription.patientId,
-          consultationId: prescription.consultationId,
-        },
-      },
+    return this.prescription.findMany({
+      where,
+      include: { items: true },
+      skip: (query.page - 1) * query.perPage,
+      take: query.perPage,
+      orderBy: { issuedAt: 'desc' },
     });
+  }
+
+  async findById(tenantId: string, id: string) {
+    const prescription = await this.prescription.findFirst({
+      where: { id, tenantId },
+      include: { items: true },
+    });
+
+    if (!prescription) {
+      throw new NotFoundException('Prescrição não encontrada');
+    }
 
     return prescription;
   }
 
-  findByPatient(tenantId: string, patientId: string, limit = 20) {
-    return this.prescription.findMany({
-      where: { tenantId, patientId },
-      orderBy: { issuedAt: 'desc' },
-      take: limit,
-    });
-  }
+  async update(tenantId: string, id: string, dto: UpdatePrescriptionDto) {
+    const current = await this.findById(tenantId, id);
 
-  findByConsultation(tenantId: string, consultationId: string) {
-    return this.prescription.findMany({
-      where: { tenantId, consultationId },
-      orderBy: { issuedAt: 'desc' },
-    });
-  }
+    return this.prisma.$transaction(async (trx) => {
+      const client = trx as unknown as PrismaTransaction;
 
-  findActive(tenantId: string, patientId: string) {
-    const today = new Date();
+      if (dto.items) {
+        await client.prescriptionItem.deleteMany({ where: { prescriptionId: id } });
+      }
 
-    return this.prescription.findMany({
-      where: {
-        tenantId,
-        patientId,
-        status: 'ATIVA',
-        OR: [{ validUntil: null }, { validUntil: { gte: today } }],
-      },
-      orderBy: { issuedAt: 'desc' },
+      const updated = await client.prescription.update({
+        where: { id },
+        data: {
+          patientId: dto.patientId,
+          consultationId: dto.consultationId,
+          issuedAt: dto.issuedAt ? new Date(dto.issuedAt) : undefined,
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : dto.validUntil,
+          notes: dto.notes,
+          status: dto.status,
+          ...(dto.items
+            ? {
+                items: {
+                  createMany: {
+                    data: dto.items,
+                  },
+                },
+              }
+            : {}),
+        },
+        include: { items: true },
+      });
+
+      await client.activityLog.create({
+        data: {
+          tenantId,
+          actorId: current.clinicianId,
+          action: 'UPDATE',
+          resource: 'prescription',
+          metadata: { prescriptionId: id },
+        },
+      });
+
+      return updated;
     });
   }
 
   async cancel(tenantId: string, id: string) {
-    const current = await this.prescription.findFirst({ where: { id, tenantId } });
-    if (!current) {
-      throw new NotFoundException('Prescrição não encontrada');
-    }
+    const current = await this.findById(tenantId, id);
 
-    const canceled = await this.prescription.update({
-      where: { id },
-      data: { status: 'CANCELADA' },
+    return this.prisma.$transaction(async (trx) => {
+      const client = trx as unknown as PrismaTransaction;
+
+      const canceled = await client.prescription.update({
+        where: { id },
+        data: { status: 'CANCELADA' },
+        include: { items: true },
+      });
+
+      await client.activityLog.create({
+        data: {
+          tenantId,
+          actorId: current.clinicianId,
+          action: 'CANCEL',
+          resource: 'prescription',
+          metadata: { prescriptionId: id, previousStatus: current.status, nextStatus: 'CANCELADA' },
+        },
+      });
+
+      return canceled;
     });
-
-    await this.prisma.activityLog.create({
-      data: {
-        tenantId,
-        actorId: current.clinicianId,
-        action: 'CANCEL',
-        resource: 'prescription',
-        metadata: { prescriptionId: id, previousStatus: current.status, nextStatus: 'CANCELADA' },
-      },
-    });
-
-    return canceled;
   }
 
-  async renew(tenantId: string, id: string, validUntil: Date | string | null) {
-    const current = await this.prescription.findFirst({ where: { id, tenantId } });
-    if (!current) {
-      throw new NotFoundException('Prescrição não encontrada');
-    }
+  async duplicate(tenantId: string, clinicianId: string, id: string) {
+    const source = await this.findById(tenantId, id);
 
-    const renewed = await this.prescription.create({
-      data: {
-        tenantId,
-        patientId: current.patientId,
-        consultationId: current.consultationId,
-        clinicianId: current.clinicianId,
-        items: current.items as Prisma.InputJsonValue,
-        notes: current.notes ?? null,
-        issuedAt: new Date(),
-        validUntil: validUntil ? new Date(String(validUntil)) : null,
-        status: 'ATIVA',
-      },
+    return this.prisma.$transaction(async (trx) => {
+      const client = trx as unknown as PrismaTransaction;
+
+      const duplicated = await client.prescription.create({
+        data: {
+          tenantId,
+          clinicianId,
+          patientId: source.patientId,
+          consultationId: source.consultationId ?? null,
+          issuedAt: new Date(),
+          validUntil: null,
+          status: 'ATIVA',
+          notes: source.notes ?? null,
+          items: {
+            createMany: {
+              data: source.items ?? [],
+            },
+          },
+        },
+        include: { items: true },
+      });
+
+      await client.activityLog.create({
+        data: {
+          tenantId,
+          actorId: clinicianId,
+          action: 'DUPLICATE',
+          resource: 'prescription',
+          metadata: { sourcePrescriptionId: id, duplicatedPrescriptionId: duplicated.id },
+        },
+      });
+
+      return duplicated;
     });
-
-    await this.prisma.activityLog.create({
-      data: {
-        tenantId,
-        actorId: current.clinicianId,
-        action: 'RENEW',
-        resource: 'prescription',
-        metadata: { previousPrescriptionId: id, renewedPrescriptionId: renewed.id, validUntil },
-      },
-    });
-
-    return renewed;
   }
 
-  // Compatibilidade com endpoints legados
-  list(tenantId: string) {
-    return this.prescription.findMany({ where: { tenantId }, orderBy: { issuedAt: 'desc' } });
-  }
-
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    return this.prescription.update({ where: { id, tenantId }, data: payload });
+  searchMedication(tenantId: string, query: string) {
+    return this.medication.findMany({
+      where: {
+        tenantId,
+        name: { contains: query, mode: 'insensitive' },
+      },
+      take: 20,
+      orderBy: { name: 'asc' },
+    });
   }
 
   async remove(tenantId: string, id: string) {
     await this.cancel(tenantId, id);
     return { deleted: true };
-  }
-
-  async execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    await this.prisma.activityLog.create({
-      data: { tenantId, actorId, action, resource: 'prescription', metadata: payload as Prisma.InputJsonValue },
-    });
-    return { action, tenantId, actorId, status: 'queued', payload };
   }
 }
