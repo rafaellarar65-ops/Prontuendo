@@ -14,7 +14,6 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
-import { useCreateBioimpedanceMutation } from '@/features/bioimpedance/use-create-bioimpedance-mutation';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
@@ -327,28 +326,21 @@ const GlucoseTab = ({ patientId }: { patientId: string }) => {
 // ── Bioimpedance Tab ─────────────────────────────────────────────
 const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    measuredAt: new Date().toISOString().slice(0, 10),
-    bodyFatPct: '',
-    muscleMassKg: '',
-    weightKg: '',
-  });
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
-  const { mutate, isPending } = useCreateBioimpedanceMutation(patientId);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+        <p className="text-sm text-slate-500">{data?.length ?? 0} exame(s) de bioimpedância</p>
         <button
           type="button"
           onClick={() => setShowModal(true)}
           className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
         >
-          <Plus size={13} />
-          Adicionar exame
+          <Plus size={13} /> Adicionar exame
         </button>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
@@ -366,78 +358,13 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
       </ul>
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl"
-            onSubmit={(e) => {
-              e.preventDefault();
-              mutate({
-                measuredAt: new Date(form.measuredAt).toISOString(),
-                ...(form.bodyFatPct ? { bodyFatPct: Number(form.bodyFatPct) } : {}),
-                ...(form.muscleMassKg ? { muscleMassKg: Number(form.muscleMassKg) } : {}),
-                ...(form.weightKg ? { weightKg: Number(form.weightKg) } : {}),
-              }, {
-                onSuccess: () => {
-                  setShowModal(false);
-                  setForm({
-                    measuredAt: new Date().toISOString().slice(0, 10),
-                    bodyFatPct: '',
-                    muscleMassKg: '',
-                    weightKg: '',
-                  });
-                },
-              });
-            }}
-          >
-            <h3 className="font-semibold text-slate-800">Registrar bioimpedância</h3>
-            <input
-              required
-              type="date"
-              value={form.measuredAt}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              onChange={(e) => setForm((prev) => ({ ...prev, measuredAt: e.target.value }))}
-            />
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Peso (kg)"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={form.weightKg}
-                onChange={(e) => setForm((prev) => ({ ...prev, weightKg: e.target.value }))}
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Gordura (%)"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={form.bodyFatPct}
-                onChange={(e) => setForm((prev) => ({ ...prev, bodyFatPct: e.target.value }))}
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Músculo (kg)"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={form.muscleMassKg}
-                onChange={(e) => setForm((prev) => ({ ...prev, muscleMassKg: e.target.value }))}
-              />
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Adicionar exame de bioimpedância</h3>
+            <p className="text-sm text-slate-500">O cadastro de exame de bioimpedância será disponibilizado em breve.</p>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">Fechar</button>
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="rounded-lg border px-3 py-2 text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={isPending}
-                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                Salvar
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       )}
     </div>
