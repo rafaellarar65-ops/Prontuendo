@@ -1,73 +1,55 @@
 import { Test } from '@nestjs/testing';
 
-import { PrismaService } from '../prisma/prisma.service';
 import { AgendaService } from './agenda.service';
 
 describe('AgendaService', () => {
   it('deve criar e listar por tenant', async () => {
-    const findMany = jest.fn().mockResolvedValue([
-      {
-        id: 'a1',
-        tenantId: 't1',
-        patientId: 'p1',
-        clinicianId: 'u1',
-        date: new Date('2026-01-01T00:00:00.000Z'),
-        startTime: '10:00',
-        type: 'RETORNO',
-        status: 'AGENDADO',
-        notes: null,
-        patient: { fullName: 'Paciente 1' },
-      },
-    ]);
-
-    const create = jest.fn().mockResolvedValue({
-      id: 'a2',
-      tenantId: 't1',
-      patientId: 'p2',
-      clinicianId: 'u1',
-      date: new Date('2026-01-02T00:00:00.000Z'),
-      startTime: '11:00',
-      type: 'PRIMEIRA_CONSULTA',
-      status: 'AGENDADO',
-      notes: 'obs',
-      patient: { fullName: 'Paciente 2' },
-    });
-
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        AgendaService,
-        {
-          provide: PrismaService,
-          useValue: {
-            appointment: {
-              findMany,
-              findFirst: jest.fn(),
-              create,
-              update: jest.fn(),
-              delete: jest.fn(),
-            },
-          },
-        },
-      ],
+      providers: [AgendaService],
     }).compile();
 
     const service = moduleRef.get(AgendaService);
-    const created = await service.create('t1', 'u1', {
-      patientId: 'p2',
-      date: '2026-01-02',
-      time: '11:00',
-      type: 'PRIMEIRA_CONSULTA',
-    });
-    const list = await service.findAll('t1');
 
-    expect(created.patientName).toBe('Paciente 2');
-    expect(list).toHaveLength(1);
-    expect(list[0].patientName).toBe('Paciente 1');
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ include: { patient: { select: { fullName: true } } } }),
-    );
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ include: { patient: { select: { fullName: true } } } }),
-    );
+    service.create('t1', 'u1', {
+      patientId: 'p1',
+      date: '2026-03-03',
+      time: '09:00',
+      type: 'RETORNO',
+    });
+
+    service.create('t2', 'u2', {
+      patientId: 'p2',
+      date: '2026-03-03',
+      time: '10:00',
+      type: 'EXAME',
+    });
+
+    expect(service.list('t1')).toHaveLength(1);
+    expect(service.list('t2')).toHaveLength(1);
+  });
+
+  it('deve filtrar por data e paciente', async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [AgendaService],
+    }).compile();
+
+    const service = moduleRef.get(AgendaService);
+
+    service.create('t1', 'u1', {
+      patientId: 'p1',
+      date: '2026-03-03',
+      time: '09:00',
+      type: 'RETORNO',
+    });
+
+    service.create('t1', 'u1', {
+      patientId: 'p2',
+      date: '2026-03-04',
+      time: '10:00',
+      type: 'EXAME',
+    });
+
+    expect(service.findByDate('t1', '2026-03-03')).toHaveLength(1);
+    expect(service.findByPatient('t1', 'p2')).toHaveLength(1);
   });
 });

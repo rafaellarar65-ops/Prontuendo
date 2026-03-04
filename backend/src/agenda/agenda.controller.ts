@@ -2,7 +2,10 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
-import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { ListAppointmentsDto } from './dto/list-appointments.dto';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { AgendaService } from './agenda.service';
 
 @ApiTags('agenda')
@@ -13,36 +16,38 @@ export class AgendaController {
 
   @Get()
   @ApiOperation({ summary: 'Listar agendamentos' })
-  list(@CurrentUser() user: AuthUser, @Query('date') date?: string, @Query('patientId') patientId?: string) {
-    if (patientId) {
-      return this.service.findByPatient(user.tenantId, patientId);
-    }
+  list(@CurrentUser() user: AuthUser, @Query() query: ListAppointmentsDto) {
+    return this.service.list(user.tenantId, query);
+  }
 
-    if (date) {
-      return this.service.findByDate(user.tenantId, date);
-    }
+  @Get('date/:date')
+  @ApiOperation({ summary: 'Listar agendamentos por data' })
+  listByDate(@CurrentUser() user: AuthUser, @Param('date') date: string) {
+    return this.service.findByDate(user.tenantId, date);
+  }
 
-    return this.service.findAll(user.tenantId);
+  @Get('patient/:patientId')
+  @ApiOperation({ summary: 'Listar agendamentos por paciente' })
+  listByPatient(@CurrentUser() user: AuthUser, @Param('patientId') patientId: string) {
+    return this.service.findByPatient(user.tenantId, patientId);
   }
 
   @Post()
   @ApiOperation({ summary: 'Criar agendamento' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.create(user.tenantId, user.sub, dto.payload);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateAppointmentDto) {
+    return this.service.create(user.tenantId, user.sub, dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar agendamento' })
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    if (dto.payload.status && Object.keys(dto.payload).length === 1) {
-      return this.service.updateStatus(
-        user.tenantId,
-        id,
-        String(dto.payload.status) as 'AGENDADO' | 'CONFIRMADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO',
-      );
-    }
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
+    return this.service.update(user.tenantId, id, dto);
+  }
 
-    return this.service.update(user.tenantId, id, dto.payload);
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Atualizar status do agendamento' })
+  updateStatus(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateAppointmentStatusDto) {
+    return this.service.updateStatus(user.tenantId, id, dto.status);
   }
 
   @Delete(':id')
