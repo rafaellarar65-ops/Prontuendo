@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Loader2, Plus, Sparkles, Upload } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
 import { useLabResultsQuery } from '@/features/lab-results/use-lab-results-query';
 import { useCreateLabResultMutation } from '@/features/lab-results/use-create-lab-result-mutation';
+import { labResultsApi } from '@/lib/api/lab-results-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
 
@@ -25,6 +27,32 @@ export const PatientExamsTab = ({ patientId }: { patientId: string }) => {
   const [valueInput, setValueInput] = useState('');
   const { data, isLoading } = useLabResultsQuery(patientId);
   const { mutate, isPending } = useCreateLabResultMutation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const analyzeMutation = useMutation({
+    mutationFn: (file: File) => labResultsApi.analyze(file),
+    onSuccess: (data) => {
+      if (data.tests && data.tests.length > 0) {
+        const test = data.tests[0];
+        setForm(prev => ({
+          ...prev,
+          examName: test.testName || prev.examName,
+          value: typeof test.resultValue === 'number' ? test.resultValue : parseFloat(test.resultValue) || 0,
+          unit: test.unit || prev.unit,
+          reference: test.referenceRange || prev.reference,
+          resultDate: data.labReport?.reportDate ? new Date(data.labReport.reportDate).toISOString() : prev.resultDate
+        }));
+        setValueInput(String(test.resultValue || ''));
+      }
+    }
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      analyzeMutation.mutate(file);
+    }
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +63,7 @@ export const PatientExamsTab = ({ patientId }: { patientId: string }) => {
       onSuccess: () => {
         setShowModal(false);
         setValueInput('');
+        setForm({ patientId, examName: '', value: 0, unit: '', reference: '', resultDate: new Date().toISOString().slice(0, 10) });
       },
     });
   };
@@ -70,12 +99,31 @@ export const PatientExamsTab = ({ patientId }: { patientId: string }) => {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form onSubmit={submit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="font-semibold text-slate-800">Adicionar exame</h3>
-            <input required placeholder="Nome do exame" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, examName: e.target.value }))} />
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-slate-800">Adicionar exame</h3>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={analyzeMutation.isPending}
+                className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {analyzeMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                {analyzeMutation.isPending ? 'Analisando...' : 'Preencher com IA'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+            
+            <input required placeholder="Nome do exame" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={form.examName} onChange={(e) => setForm((p) => ({ ...p, examName: e.target.value }))} />
             <div className="grid grid-cols-2 gap-2">
               <input required type="text" inputMode="decimal" placeholder="Valor" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={valueInput} onChange={(e) => setValueInput(e.target.value)} />
-              <input placeholder="Unidade" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} />
-              <input placeholder="Referência (ex: 70-99)" className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
+              <input placeholder="Unidade" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={form.unit || ''} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} />
+              <input placeholder="Referência (ex: 70-99)" className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" value={form.reference || ''} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} />
               <input required type="date" value={form.resultDate.slice(0, 10)} className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" onChange={(e) => setForm((p) => ({ ...p, resultDate: e.target.value }))} />
             </div>
             <div className="flex justify-end gap-2">
