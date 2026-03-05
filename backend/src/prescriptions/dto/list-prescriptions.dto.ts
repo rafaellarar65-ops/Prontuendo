@@ -1,9 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-import { PaginationDto } from '../../common/dto/pagination.dto';
-
-export class ListPrescriptionsDto extends PaginationDto {
+export class ListPrescriptionsDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -12,10 +11,19 @@ export class ListPrescriptionsDto extends PaginationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  consultationId?: string;
+  status?: string;
 
-  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'] })
+  @ApiPropertyOptional({ default: 1 })
   @IsOptional()
-  @IsIn(['ATIVA', 'CANCELADA'])
-  status?: 'ATIVA' | 'CANCELADA';
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  perPage = 20;
 }
