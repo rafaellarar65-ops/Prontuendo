@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, Calendar, ChevronRight, Edit2, FileText, Loader2,
-  Phone, Mail, MapPin, Plus, Stethoscope, User, X,
+  Activity, Calendar, ChevronRight, Download, Edit2, File, FileImage, FileText, Loader2,
+  Phone, Mail, MapPin, Plus, Stethoscope, Upload, User, X,
 } from 'lucide-react';
 import { patientApi } from '@/lib/api/patient-api';
 import { consultationApi } from '@/lib/api/consultation-api';
@@ -14,20 +14,16 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
-import {
-  bioimpedanceApi,
-  mapBioimpedanceAiToFormValues,
-  mapBioimpedanceFormToCreatePayload,
-} from '@/lib/api/bioimpedance-api';
+import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
 import { aiApi } from '@/lib/api/ai-api';
+import { documentsApi } from '@/lib/api/documents-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
-import type {
-  BioimpedanceAiExtractionResponse,
-  BioimpedanceMetadata,
-  BioimpedancePoint,
-} from '@/types/bioimpedance';
+import type { BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
+import type { Document, DocumentCategory } from '@/types/documents';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
+import { useDocumentsQuery } from '@/features/documents/use-documents-query';
+import { useUploadDocumentMutation } from '@/features/documents/use-upload-document-mutation';
 
 const calcAge = (bd?: string) =>
   bd ? Math.floor((Date.now() - new Date(bd).getTime()) / 3.156e10) : null;
@@ -353,27 +349,63 @@ type BioFieldSource = 'manual' | 'ia';
 
 type BioimpedanceFormState = {
   measuredAt: string;
+  weightKg: string;
   bodyFatPct: string;
   muscleMassKg: string;
-  weightKg: string;
+  bodyWaterPct: string;
+  visceralFatLevel: string;
+  basalMetabolicRateKcal: string;
+  boneMassKg: string;
+  imc: string;
 };
 
-const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
+const toNumberOrUndefined = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = Number(value.replace(',', '.'));
+    if (Number.isFinite(normalized)) return normalized;
+  }
+  return undefined;
+};
+
+const resolveHeightMeters = (patient: Patient): number | null => {
+  const profile = patient as unknown as Record<string, unknown>;
+  const rawHeight =
+    toNumberOrUndefined(profile.heightM)
+    ?? toNumberOrUndefined(profile.height)
+    ?? toNumberOrUndefined(profile.heightCm)
+    ?? toNumberOrUndefined((profile.anthropometry as Record<string, unknown> | undefined)?.heightM)
+    ?? toNumberOrUndefined((profile.anthropometry as Record<string, unknown> | undefined)?.heightCm);
+
+  if (!rawHeight) return null;
+  return rawHeight > 3 ? rawHeight / 100 : rawHeight;
+};
+
+const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: Patient }) => {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data, isLoading } = useBioimpedanceEvolutionQuery(patientId);
+  const heightInMeters = resolveHeightMeters(patient);
   const latest: BioimpedancePoint | undefined = data?.at(-1);
   const [showModal, setShowModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<BioimpedanceMetadata>({ source: 'manual' });
-  const [fieldsSource, setFieldsSource] = useState<Record<string, BioFieldSource>>({});
+  const [metadata, setMetadata] = useState<Record<string, unknown>>({
+    source: 'manual',
+    originalFile: null,
+    fieldsSource: {},
+  });
   const [form, setForm] = useState<BioimpedanceFormState>({
     measuredAt: new Date().toISOString().slice(0, 10),
+    weightKg: '',
     bodyFatPct: '',
     muscleMassKg: '',
-    weightKg: '',
+    bodyWaterPct: '',
+    visceralFatLevel: '',
+    basalMetabolicRateKcal: '',
+    boneMassKg: '',
+    imc: '',
   });
 
   const createMutation = useMutation({
@@ -383,36 +415,75 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
       setShowModal(false);
       setFileError(null);
       setSelectedFileName(null);
-      setMetadata({ source: 'manual' });
-      setFieldsSource({});
-      setForm({ measuredAt: new Date().toISOString().slice(0, 10), bodyFatPct: '', muscleMassKg: '', weightKg: '' });
+      setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
+      setForm({
+        measuredAt: new Date().toISOString().slice(0, 10),
+        weightKg: '',
+        bodyFatPct: '',
+        muscleMassKg: '',
+        bodyWaterPct: '',
+        visceralFatLevel: '',
+        basalMetabolicRateKcal: '',
+        boneMassKg: '',
+        imc: '',
+      });
     },
   });
 
   const extractMutation = useMutation({
     mutationFn: (text: string) => aiApi.extractBioimpedance(text),
     onSuccess: (result) => {
-      const parsed = mapBioimpedanceAiToFormValues(result as BioimpedanceAiExtractionResponse);
+      const extractNumber = (value: unknown): string => {
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'string') return value;
+        return '';
+      };
+
+      const bodyFat = extractNumber((result as Record<string, unknown>)?.bodyFatPct ?? (result as Record<string, unknown>)?.fatMassPercent);
+      const muscle = extractNumber((result as Record<string, unknown>)?.muscleMassKg);
+      const weight = extractNumber((result as Record<string, unknown>)?.weightKg);
+      const bodyWater = extractNumber((result as Record<string, unknown>)?.bodyWaterPct ?? (result as Record<string, unknown>)?.hydrationPct);
+      const visceralFatLevel = extractNumber((result as Record<string, unknown>)?.visceralFatLevel);
+      const bmr = extractNumber((result as Record<string, unknown>)?.basalMetabolicRateKcal);
+      const boneMass = extractNumber((result as Record<string, unknown>)?.boneMassKg);
+      const imc = extractNumber((result as Record<string, unknown>)?.imc ?? (result as Record<string, unknown>)?.bmi);
+      const measuredAt = typeof (result as Record<string, unknown>)?.measuredAt === 'string'
+        ? String((result as Record<string, unknown>)?.measuredAt).slice(0, 10)
+        : form.measuredAt;
+
+      const fieldsSource: Record<string, BioFieldSource> = {
+        measuredAt: measuredAt ? 'ia' : 'manual',
+        bodyFatPct: bodyFat ? 'ia' : 'manual',
+        muscleMassKg: muscle ? 'ia' : 'manual',
+        weightKg: weight ? 'ia' : 'manual',
+        bodyWaterPct: bodyWater ? 'ia' : 'manual',
+        visceralFatLevel: visceralFatLevel ? 'ia' : 'manual',
+        basalMetabolicRateKcal: bmr ? 'ia' : 'manual',
+        boneMassKg: boneMass ? 'ia' : 'manual',
+        imc: imc ? 'ia' : 'manual',
+      };
+
+      const derivedImc = heightInMeters && weight
+        ? (Number(weight.replace(',', '.')) / (heightInMeters * heightInMeters)).toFixed(2)
+        : imc;
 
       setForm((prev) => ({
         ...prev,
-        measuredAt: parsed.measuredAt.slice(0, 10),
-        bodyFatPct: parsed.bodyFatPct !== undefined && parsed.bodyFatPct !== null ? String(parsed.bodyFatPct) : '',
-        muscleMassKg: parsed.muscleMassKg !== undefined && parsed.muscleMassKg !== null ? String(parsed.muscleMassKg) : '',
-        weightKg: parsed.weightKg !== undefined && parsed.weightKg !== null ? String(parsed.weightKg) : '',
+        measuredAt,
+        weightKg: weight,
+        bodyFatPct: bodyFat,
+        muscleMassKg: muscle,
+        bodyWaterPct: bodyWater,
+        visceralFatLevel,
+        basalMetabolicRateKcal: bmr,
+        boneMassKg: boneMass,
+        imc: derivedImc,
       }));
-      setMetadata({
-        source: parsed.source,
-        ...(parsed.segmentedFields ? { segmentedFields: parsed.segmentedFields } : {}),
-        ...(parsed.originalFileName ? { originalFileName: parsed.originalFileName } : {}),
-        ...(parsed.originalFileUrl ? { originalFileUrl: parsed.originalFileUrl } : {}),
-      });
-      setFieldsSource({
-        measuredAt: parsed.measuredAt ? 'ia' : 'manual',
-        bodyFatPct: parsed.bodyFatPct !== undefined && parsed.bodyFatPct !== null ? 'ia' : 'manual',
-        muscleMassKg: parsed.muscleMassKg !== undefined && parsed.muscleMassKg !== null ? 'ia' : 'manual',
-        weightKg: parsed.weightKg !== undefined && parsed.weightKg !== null ? 'ia' : 'manual',
-      });
+      setMetadata((prev) => ({
+        ...prev,
+        source: 'ia',
+        fieldsSource,
+      }));
     },
     onError: () => {
       setFileError('Não foi possível extrair os dados do exame com IA.');
@@ -420,10 +491,26 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
   });
 
   const setField = (name: keyof BioimpedanceFormState, value: string) => {
-    setForm((prev) => ({ ...prev, [name]: value }));
-    setFieldsSource((prev) => ({
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+
+      if (name === 'weightKg') {
+        const parsedWeight = Number(value.replace(',', '.'));
+        if (heightInMeters && Number.isFinite(parsedWeight) && parsedWeight > 0) {
+          next.imc = (parsedWeight / (heightInMeters * heightInMeters)).toFixed(2);
+        } else if (heightInMeters) {
+          next.imc = '';
+        }
+      }
+
+      return next;
+    });
+    setMetadata((prev) => ({
       ...prev,
-      [name]: 'manual',
+      fieldsSource: {
+        ...(typeof prev.fieldsSource === 'object' && prev.fieldsSource !== null ? prev.fieldsSource as Record<string, BioFieldSource> : {}),
+        [name]: 'manual',
+      },
     }));
   };
 
@@ -454,7 +541,10 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
     setSelectedFileName(file.name);
     setMetadata((prev) => ({
       ...prev,
-      originalFileName: file.name,
+      originalFile: {
+        name: file.name,
+        type: file.type,
+      },
     }));
 
     try {
@@ -467,10 +557,23 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
+  const fieldsSource = (metadata.fieldsSource as Record<string, BioFieldSource> | undefined) ?? {};
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <button type="button" onClick={() => setShowModal(true)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white">Novo exame</button>
+      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+          <p>Total de exames: <span className="font-semibold text-slate-700">{data?.length ?? 0}</span></p>
+          <p>Último registro: <span className="font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</span></p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+        >
+          <Plus size={13} />
+          Novo exame
+        </button>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-100 p-3"><p className="text-xs text-slate-500">Última data</p><p className="text-sm font-semibold text-slate-700">{latest ? new Date(latest.date).toLocaleDateString('pt-BR') : '—'}</p></div>
@@ -487,23 +590,36 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
       </ul>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <form className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl" onSubmit={(e) => {
             e.preventDefault();
-            createMutation.mutate(mapBioimpedanceFormToCreatePayload(patientId, {
+            if (createMutation.isPending) return;
+            createMutation.mutate({
+              patientId,
               measuredAt: new Date(`${form.measuredAt}T00:00:00`).toISOString(),
-              source: metadata.source,
               bodyFatPct: Number(form.bodyFatPct) || 0,
               muscleMassKg: Number(form.muscleMassKg) || 0,
               weightKg: form.weightKg ? Number(form.weightKg) : null,
-              ...(metadata.segmentedFields ? { segmentedFields: metadata.segmentedFields } : {}),
-              ...(metadata.originalFileName ? { originalFileName: metadata.originalFileName } : {}),
-              ...(metadata.originalFileUrl ? { originalFileUrl: metadata.originalFileUrl } : {}),
-            }));
+              hydrationPct: form.bodyWaterPct ? Number(form.bodyWaterPct) : null,
+              visceralFatLevel: form.visceralFatLevel ? Number(form.visceralFatLevel) : null,
+              basalMetabolicRateKcal: form.basalMetabolicRateKcal ? Number(form.basalMetabolicRateKcal) : null,
+              bmi: form.imc ? Number(form.imc) : null,
+              metadata: {
+                source: (metadata.source as string) === 'ia' ? 'ia' as const : 'manual' as const,
+                segmentedFields: {
+                  ...((metadata.segmentedFields as Record<string, unknown> | undefined) ?? {}),
+                  boneMassKg: form.boneMassKg ? Number(form.boneMassKg) : null,
+                  imc: form.imc ? Number(form.imc) : null,
+                  heightMUsedForImc: heightInMeters,
+                },
+              },
+            });
           }}>
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">Registrar bioimpedância</h3>
-              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-3 py-2 text-sm">Fechar</button>
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Fechar">
+                <X size={16} />
+              </button>
             </div>
 
             <div className="space-y-2 rounded-xl border border-slate-200 p-3">
@@ -541,7 +657,11 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
             <div className="grid grid-cols-2 gap-3">
               <label className="space-y-1 text-sm text-slate-700">
                 <span className="inline-flex items-center gap-2">Data medição {fieldsSource.measuredAt === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
-                <input type="date" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.measuredAt} onChange={(e) => setField('measuredAt', e.target.value)} />
+                <input required type="date" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.measuredAt} onChange={(e) => setField('measuredAt', e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm text-slate-700">
+                <span className="inline-flex items-center gap-2">Peso (kg) {fieldsSource.weightKg === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
+                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.weightKg} onChange={(e) => setField('weightKg', e.target.value)} />
               </label>
               <label className="space-y-1 text-sm text-slate-700">
                 <span className="inline-flex items-center gap-2">Gordura corporal (%) {fieldsSource.bodyFatPct === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
@@ -552,15 +672,265 @@ const BioimpedanceTab = ({ patientId }: { patientId: string }) => {
                 <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.muscleMassKg} onChange={(e) => setField('muscleMassKg', e.target.value)} />
               </label>
               <label className="space-y-1 text-sm text-slate-700">
-                <span className="inline-flex items-center gap-2">Peso (kg) {fieldsSource.weightKg === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
-                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.weightKg} onChange={(e) => setField('weightKg', e.target.value)} />
+                <span className="inline-flex items-center gap-2">Água corporal (%) {fieldsSource.bodyWaterPct === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
+                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.bodyWaterPct} onChange={(e) => setField('bodyWaterPct', e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm text-slate-700">
+                <span className="inline-flex items-center gap-2">Gordura visceral (nível) {fieldsSource.visceralFatLevel === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
+                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.visceralFatLevel} onChange={(e) => setField('visceralFatLevel', e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm text-slate-700">
+                <span className="inline-flex items-center gap-2">Taxa metabólica basal (kcal) {fieldsSource.basalMetabolicRateKcal === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
+                <input type="number" step="1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.basalMetabolicRateKcal} onChange={(e) => setField('basalMetabolicRateKcal', e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm text-slate-700">
+                <span className="inline-flex items-center gap-2">Massa óssea (kg) {fieldsSource.boneMassKg === 'ia' && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">Extraído por IA</span>}</span>
+                <input type="number" step="0.1" className="w-full rounded-lg border border-slate-200 px-3 py-2" value={form.boneMassKg} onChange={(e) => setField('boneMassKg', e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm text-slate-700">
+                <span>IMC {heightInMeters ? <span className="text-xs text-slate-400">(calculado automaticamente)</span> : <span className="text-xs text-slate-400">(altura não disponível no perfil)</span>}</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  disabled={!heightInMeters}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  value={heightInMeters ? form.imc : ''}
+                  readOnly
+                />
               </label>
             </div>
 
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
-              <button disabled={createMutation.isPending || extractMutation.isPending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+              <button type="submit" disabled={createMutation.isPending || extractMutation.isPending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
                 {createMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DOCUMENT_CATEGORIES: DocumentCategory[] = ['EXAME', 'RECEITA', 'ATESTADO', 'RELATORIO', 'OUTRO'];
+
+const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
+  EXAME: 'Exame',
+  RECEITA: 'Receita',
+  ATESTADO: 'Atestado',
+  RELATORIO: 'Relatório',
+  OUTRO: 'Outro',
+};
+
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const isImageMimeType = (mimeType: string) => mimeType.startsWith('image/');
+const isPdfMimeType = (mimeType: string) => mimeType === 'application/pdf';
+
+const getDocumentIcon = (mimeType: string) => {
+  if (isPdfMimeType(mimeType)) return <FileText size={16} className="text-rose-500" />;
+  if (isImageMimeType(mimeType)) return <FileImage size={16} className="text-indigo-500" />;
+  return <File size={16} className="text-slate-500" />;
+};
+
+const DocumentsTab = ({ patientId }: { patientId: string }) => {
+  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'all'>('all');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [uploadForm, setUploadForm] = useState<{ file: File | null; category: DocumentCategory; description: string }>({
+    file: null,
+    category: 'EXAME',
+    description: '',
+  });
+
+  const { data: documents, isLoading } = useDocumentsQuery(patientId, selectedCategory === 'all' ? undefined : selectedCategory);
+  const uploadMutation = useUploadDocumentMutation();
+
+  useEffect(() => {
+    if (!selectedDocument) return;
+
+    let isActive = true;
+    let createdUrl: string | null = null;
+
+    const loadPreview = async () => {
+      try {
+        const blob = await documentsApi.download(selectedDocument.id);
+        if (!isActive) return;
+        createdUrl = URL.createObjectURL(blob);
+        setPreviewUrl(createdUrl);
+      } catch {
+        if (isActive) {
+          setPreviewUrl(null);
+        }
+      }
+    };
+
+    setPreviewUrl(null);
+    void loadPreview();
+
+    return () => {
+      isActive = false;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [selectedDocument]);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadForm.file) return;
+
+    await uploadMutation.mutateAsync({
+      file: uploadForm.file,
+      patientId,
+      category: uploadForm.category,
+      ...(uploadForm.description.trim() ? { description: uploadForm.description.trim() } : {}),
+    });
+
+    setUploadForm({ file: null, category: 'EXAME', description: '' });
+    setShowUploadModal(false);
+  };
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      setDownloadingId(doc.id);
+      const blob = await documentsApi.download(doc.id);
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = doc.fileName;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(blobUrl);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-slate-500">{documents?.length ?? 0} documento(s)</p>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value as DocumentCategory | 'all')}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="all">Todas as categorias</option>
+            {DOCUMENT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{DOCUMENT_CATEGORY_LABEL[category]}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setShowUploadModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+            <Upload size={13} /> Upload
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div> : (
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+          <ul className="space-y-2">
+            {(documents ?? []).map((doc) => {
+              const isFromPortal = Boolean((doc as Document & { isFromPortal?: boolean }).isFromPortal);
+              const isSelected = selectedDocument?.id === doc.id;
+
+              return (
+                <li key={doc.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDocument(doc)}
+                    className={`w-full rounded-xl border p-3 text-left transition ${isSelected ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                          {getDocumentIcon(doc.mimeType)}
+                          <span className="truncate">{doc.fileName}</span>
+                        </p>
+                        <p className="text-xs text-slate-500">{DOCUMENT_CATEGORY_LABEL[doc.category]} · {formatFileSize(doc.size)}</p>
+                        <p className="text-xs text-slate-400">{new Date(doc.uploadedAt).toLocaleString('pt-BR')}</p>
+                        {doc.description && <p className="text-xs text-slate-500">{doc.description}</p>}
+                        {isFromPortal && <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Enviado pelo paciente</span>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDownload(doc);
+                        }}
+                        disabled={downloadingId === doc.id}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {downloadingId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                        Download
+                      </button>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            {(!documents || !documents.length) && <li className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">Nenhum documento encontrado para este filtro.</li>}
+          </ul>
+
+          <div className="rounded-xl border border-slate-200 p-3">
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">Pré-visualização</h3>
+            {!selectedDocument && <p className="text-sm text-slate-400">Selecione um documento para visualizar.</p>}
+            {selectedDocument && !previewUrl && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>}
+            {selectedDocument && previewUrl && (
+              <div className="space-y-2">
+                <p className="truncate text-xs text-slate-500">{selectedDocument.fileName}</p>
+                {isImageMimeType(selectedDocument.mimeType) && (
+                  <img src={previewUrl} alt={selectedDocument.fileName} className="max-h-[420px] w-full rounded-lg border border-slate-200 object-contain" />
+                )}
+                {isPdfMimeType(selectedDocument.mimeType) && (
+                  <iframe src={previewUrl} title={selectedDocument.fileName} className="h-[420px] w-full rounded-lg border border-slate-200" />
+                )}
+                {!isImageMimeType(selectedDocument.mimeType) && !isPdfMimeType(selectedDocument.mimeType) && (
+                  <p className="text-sm text-slate-500">Não há preview inline para este tipo de arquivo. Use o botão de download.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={(e) => { void handleUpload(e); }} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="font-semibold text-slate-800">Enviar documento</h3>
+            <input
+              required
+              type="file"
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <select
+              value={uploadForm.category}
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, category: e.target.value as DocumentCategory }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            >
+              {DOCUMENT_CATEGORIES.map((category) => (
+                <option key={category} value={category}>{DOCUMENT_CATEGORY_LABEL[category]}</option>
+              ))}
+            </select>
+            <textarea
+              placeholder="Descrição (opcional)"
+              value={uploadForm.description}
+              onChange={(e) => setUploadForm((prev) => ({ ...prev, description: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowUploadModal(false)} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button type="submit" disabled={!uploadForm.file || uploadMutation.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {uploadMutation.isPending && <Loader2 size={14} className="animate-spin" />} Enviar
               </button>
             </div>
           </form>
@@ -755,15 +1125,10 @@ export const PatientProfilePage = () => {
 
         {tab === 'glicemia' && <GlucoseTab patientId={patientId!} />}
 
-        {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} />}
+        {tab === 'bioimpedancia' && <BioimpedanceTab patientId={patientId!} patient={data} />}
 
 
-        {tab === 'documentos' && (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <FileText size={32} className="mb-2 opacity-30" />
-            <p className="text-sm">Documentos e arquivos aparecerão aqui.</p>
-          </div>
-        )}
+        {tab === 'documentos' && <DocumentsTab patientId={patientId!} />}
       </div>
 
       {showEdit && <EditPatientModal patient={data} onClose={() => setShowEdit(false)} />}

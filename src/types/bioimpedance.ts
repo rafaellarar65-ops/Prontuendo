@@ -19,15 +19,9 @@ export interface BioimpedancePoint {
 
 export type BioimpedanceMetadataSource = 'manual' | 'ia';
 
-export type BioimpedanceLegacyClinicalField = 'bodyFatPercent' | 'muscleMass';
-
-export type BioimpedanceSegmentedFields = Partial<
-  Record<keyof BioimpedanceClinicalFields | BioimpedanceLegacyClinicalField, number | string | null>
->;
-
 export interface BioimpedanceMetadata {
   source: BioimpedanceMetadataSource;
-  segmentedFields?: BioimpedanceSegmentedFields;
+  segmentedFields?: Record<string, unknown>;
   originalFileUrl?: string;
   originalFileName?: string;
 }
@@ -63,10 +57,7 @@ export type CreateBioimpedancePayload = Omit<BioimpedanceExam, 'id' | 'tenantId'
 
 export interface BioimpedanceAiExtractionResponse extends Partial<BioimpedanceClinicalFields> {
   measuredAt?: string;
-  /** Campos legados vindos de extrações antigas de IA. */
-  fatMassPercent?: number | null;
-  muscleMass?: number | null;
-  segmentedFields?: BioimpedanceSegmentedFields;
+  segmentedFields?: Record<string, unknown>;
   originalFileUrl?: string;
   originalFileName?: string;
 }
@@ -74,7 +65,7 @@ export interface BioimpedanceAiExtractionResponse extends Partial<BioimpedanceCl
 export interface BioimpedanceFormValues extends Partial<BioimpedanceClinicalFields> {
   measuredAt: string;
   source: BioimpedanceMetadataSource;
-  segmentedFields?: BioimpedanceSegmentedFields;
+  segmentedFields?: Record<string, unknown>;
   originalFileUrl?: string;
   originalFileName?: string;
 }

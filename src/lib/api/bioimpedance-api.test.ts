@@ -11,13 +11,11 @@ afterEach(() => {
 });
 
 describe('bioimpedance mapping', () => {
-  it('maps AI extraction to form values with clinical fields and structured metadata', () => {
+  it('maps AI extraction to form values with metadata fields', () => {
     const form = mapBioimpedanceAiToFormValues({
       measuredAt: '2026-01-01T00:00:00.000Z',
-      fatMassPercent: 22.1,
-      muscleMass: 31.2,
-      hydrationPct: 54.3,
-      phaseAngle: 5.9,
+      bodyFatPct: 22.1,
+      muscleMassKg: 31.2,
       segmentedFields: { bodyFatPct: '22.1' },
       originalFileName: 'exame.pdf',
       originalFileUrl: 'https://files/exame.pdf',
@@ -25,9 +23,6 @@ describe('bioimpedance mapping', () => {
 
     expect(form.source).toBe('ia');
     expect(form.bodyFatPct).toBe(22.1);
-    expect(form.muscleMassKg).toBe(31.2);
-    expect(form.hydrationPct).toBe(54.3);
-    expect(form.phaseAngle).toBe(5.9);
     expect(form.segmentedFields).toEqual({ bodyFatPct: '22.1' });
     expect(form.originalFileName).toBe('exame.pdf');
   });
@@ -38,17 +33,13 @@ describe('bioimpedance mapping', () => {
       source: 'manual',
       bodyFatPct: 18,
       muscleMassKg: 35,
-      hydrationPct: 53,
       originalFileName: 'manual-entry.txt',
-      segmentedFields: { hydrationPct: 53 },
     });
 
     expect(payload.patientId).toBe('patient-1');
-    expect(payload.hydrationPct).toBe(53);
     expect(payload.metadata).toEqual({
       source: 'manual',
       originalFileName: 'manual-entry.txt',
-      segmentedFields: { hydrationPct: 53 },
     });
   });
 });
@@ -58,26 +49,16 @@ describe('bioimpedance evolution compatibility', () => {
     vi.spyOn(http, 'get').mockResolvedValue({
       data: [
         {
-          id: 'exam-2',
-          tenantId: 'tenant-1',
-          patientId: 'patient-1',
-          measuredAt: '2026-01-02T00:00:00.000Z',
-          createdAt: '2026-01-02T00:00:00.000Z',
-          bodyFatPercent: '19.5',
-          metadata: {
-            source: 'ia',
-            segmentedFields: { muscleMass: '34.2' },
-          },
-        },
-        {
           id: 'exam-1',
           tenantId: 'tenant-1',
           patientId: 'patient-1',
           measuredAt: '2026-01-01T00:00:00.000Z',
           createdAt: '2026-01-01T00:00:00.000Z',
-          bodyFatPct: 21,
-          muscleMassKg: 30,
-          metadata: { source: 'manual' },
+          bodyFatPercent: '19.5',
+          metadata: {
+            source: 'ia',
+            segmentedFields: { muscleMass: '34.2' },
+          },
         },
       ],
     } as never);
@@ -87,11 +68,6 @@ describe('bioimpedance evolution compatibility', () => {
     expect(points).toEqual([
       {
         date: '2026-01-01T00:00:00.000Z',
-        fatMassPercent: 21,
-        muscleMassKg: 30,
-      },
-      {
-        date: '2026-01-02T00:00:00.000Z',
         fatMassPercent: 19.5,
         muscleMassKg: 34.2,
       },
