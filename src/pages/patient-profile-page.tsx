@@ -15,10 +15,15 @@ import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
 import { useCreateBioimpedanceMutation } from '@/features/bioimpedance/use-create-bioimpedance-mutation';
+import { mapBioimpedanceAiToFormValues, mapBioimpedanceFormToCreatePayload } from '@/lib/api/bioimpedance-api';
 import { aiApi } from '@/lib/api/ai-api';
 import { documentsApi } from '@/lib/api/documents-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
-import type { BioimpedanceMetadata, BioimpedancePoint } from '@/types/bioimpedance';
+import type {
+  BioimpedanceAiExtractionResponse,
+  BioimpedanceMetadata,
+  BioimpedancePoint,
+} from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
 import type { Document, DocumentCategory } from '@/types/documents';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
@@ -413,34 +418,19 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
   const extractMutation = useMutation({
     mutationFn: (text: string) => aiApi.extractBioimpedance(text),
     onSuccess: (result) => {
-      const extractNumber = (value: unknown): string => {
-        if (typeof value === 'number') return String(value);
-        if (typeof value === 'string') return value;
-        return '';
-      };
-
-      const bodyFat = extractNumber((result as Record<string, unknown>)?.bodyFatPct ?? (result as Record<string, unknown>)?.fatMassPercent);
-      const muscle = extractNumber((result as Record<string, unknown>)?.muscleMassKg);
-      const weight = extractNumber((result as Record<string, unknown>)?.weightKg);
-      const bodyWater = extractNumber((result as Record<string, unknown>)?.bodyWaterPct ?? (result as Record<string, unknown>)?.hydrationPct);
-      const visceralFatLevel = extractNumber((result as Record<string, unknown>)?.visceralFatLevel);
-      const bmr = extractNumber((result as Record<string, unknown>)?.basalMetabolicRateKcal);
-      const boneMass = extractNumber((result as Record<string, unknown>)?.boneMassKg);
-      const imc = extractNumber((result as Record<string, unknown>)?.imc ?? (result as Record<string, unknown>)?.bmi);
-      const measuredAt = typeof (result as Record<string, unknown>)?.measuredAt === 'string'
-        ? String((result as Record<string, unknown>)?.measuredAt).slice(0, 10)
-        : form.measuredAt;
-
+      const parsed = mapBioimpedanceAiToFormValues(result as BioimpedanceAiExtractionResponse);
+      const weight = parsed.weightKg !== undefined && parsed.weightKg !== null ? String(parsed.weightKg) : '';
+      const imc = parsed.bmi !== undefined && parsed.bmi !== null ? String(parsed.bmi) : '';
       const fieldsSource: Record<string, BioFieldSource> = {
-        measuredAt: measuredAt ? 'ia' : 'manual',
-        bodyFatPct: bodyFat ? 'ia' : 'manual',
-        muscleMassKg: muscle ? 'ia' : 'manual',
-        weightKg: weight ? 'ia' : 'manual',
-        bodyWaterPct: bodyWater ? 'ia' : 'manual',
-        visceralFatLevel: visceralFatLevel ? 'ia' : 'manual',
-        basalMetabolicRateKcal: bmr ? 'ia' : 'manual',
-        boneMassKg: boneMass ? 'ia' : 'manual',
-        imc: imc ? 'ia' : 'manual',
+        measuredAt: parsed.measuredAt ? 'ia' : 'manual',
+        bodyFatPct: parsed.bodyFatPct !== undefined && parsed.bodyFatPct !== null ? 'ia' : 'manual',
+        muscleMassKg: parsed.muscleMassKg !== undefined && parsed.muscleMassKg !== null ? 'ia' : 'manual',
+        weightKg: parsed.weightKg !== undefined && parsed.weightKg !== null ? 'ia' : 'manual',
+        bodyWaterPct: (parsed as Record<string, unknown>).hydrationPct !== undefined ? 'ia' : 'manual',
+        visceralFatLevel: (parsed as Record<string, unknown>).visceralFatLevel !== undefined ? 'ia' : 'manual',
+        basalMetabolicRateKcal: (parsed as Record<string, unknown>).basalMetabolicRateKcal !== undefined ? 'ia' : 'manual',
+        boneMassKg: (parsed as Record<string, unknown>).boneMassKg !== undefined ? 'ia' : 'manual',
+        imc: parsed.bmi !== undefined && parsed.bmi !== null ? 'ia' : 'manual',
       };
 
       const derivedImc = heightInMeters && weight
@@ -449,21 +439,20 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
 
       setForm((prev) => ({
         ...prev,
-        measuredAt,
+        measuredAt: parsed.measuredAt ? parsed.measuredAt.slice(0, 10) : form.measuredAt,
         weightKg: weight,
-        bodyFatPct: bodyFat,
-        muscleMassKg: muscle,
-        bodyWaterPct: bodyWater,
-        visceralFatLevel,
-        basalMetabolicRateKcal: bmr,
-        boneMassKg: boneMass,
+        bodyFatPct: parsed.bodyFatPct !== undefined && parsed.bodyFatPct !== null ? String(parsed.bodyFatPct) : '',
+        muscleMassKg: parsed.muscleMassKg !== undefined && parsed.muscleMassKg !== null ? String(parsed.muscleMassKg) : '',
+        bodyWaterPct: (parsed as Record<string, unknown>).hydrationPct !== undefined ? String((parsed as Record<string, unknown>).hydrationPct) : '',
+        visceralFatLevel: (parsed as Record<string, unknown>).visceralFatLevel !== undefined ? String((parsed as Record<string, unknown>).visceralFatLevel) : '',
+        basalMetabolicRateKcal: (parsed as Record<string, unknown>).basalMetabolicRateKcal !== undefined ? String((parsed as Record<string, unknown>).basalMetabolicRateKcal) : '',
+        boneMassKg: (parsed as Record<string, unknown>).boneMassKg !== undefined ? String((parsed as Record<string, unknown>).boneMassKg) : '',
         imc: derivedImc,
       }));
       setMetadata((prev) => ({
         ...prev,
         source: 'ia',
         fieldsSource,
-      }));
     },
     onError: () => {
       setFileError('Não foi possível extrair os dados do exame com IA.');
@@ -473,7 +462,6 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
   const setField = (name: keyof BioimpedanceFormState, value: string) => {
     setForm((prev) => {
       const next = { ...prev, [name]: value };
-
       if (name === 'weightKg') {
         const parsedWeight = Number(value.replace(',', '.'));
         if (heightInMeters && Number.isFinite(parsedWeight) && parsedWeight > 0) {
@@ -482,7 +470,6 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
           next.imc = '';
         }
       }
-
       return next;
     });
     setMetadata((prev) => ({
@@ -521,10 +508,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
     setSelectedFileName(file.name);
     setMetadata((prev) => ({
       ...prev,
-      originalFile: {
-        name: file.name,
-        type: file.type,
-      },
+      originalFileName: file.name,
     }));
 
     try {
@@ -574,9 +558,9 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
           <form className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl" onSubmit={(e) => {
             e.preventDefault();
             if (createMutation.isPending) return;
-            createMutation.mutate({
-              patientId,
+            createMutation.mutate(mapBioimpedanceFormToCreatePayload(patientId, {
               measuredAt: new Date(`${form.measuredAt}T00:00:00`).toISOString(),
+              source: metadata.source,
               bodyFatPct: Number(form.bodyFatPct) || 0,
               muscleMassKg: Number(form.muscleMassKg) || 0,
               weightKg: form.weightKg ? Number(form.weightKg) : null,
@@ -584,16 +568,11 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
               visceralFatLevel: form.visceralFatLevel ? Number(form.visceralFatLevel) : null,
               basalMetabolicRateKcal: form.basalMetabolicRateKcal ? Number(form.basalMetabolicRateKcal) : null,
               bmi: form.imc ? Number(form.imc) : null,
-              metadata: {
-                source: (metadata.source as string) === 'ia' ? 'ia' as const : 'manual' as const,
-                segmentedFields: {
-                  ...((metadata.segmentedFields as Record<string, unknown> | undefined) ?? {}),
-                  boneMassKg: form.boneMassKg ? Number(form.boneMassKg) : null,
-                  imc: form.imc ? Number(form.imc) : null,
-                  heightMUsedForImc: heightInMeters,
-                },
-              },
-            }, {
+              ...(metadata.segmentedFields ? { segmentedFields: metadata.segmentedFields } : {}),
+              ...(metadata.originalFileName ? { originalFileName: metadata.originalFileName } : {}),
+              ...(metadata.originalFileUrl ? { originalFileUrl: metadata.originalFileUrl } : {}),
+              boneMassKg: form.boneMassKg ? Number(form.boneMassKg) : null,
+            }), {
               onSuccess: () => {
                 setShowModal(false);
                 setFileError(null);
