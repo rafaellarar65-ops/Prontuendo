@@ -190,7 +190,7 @@ async function main() {
     },
   })
 
-  const doctorHash = await bcrypt.hash('crucru22', 10)
+  const doctorHash = await bcrypt.hash('12345678', 10)
   const doctor = await prisma.user.upsert({
     where: { tenantId_email: { tenantId, email: 'rafaellarar65@gmail.com' } },
     update: { passwordHash: doctorHash },
