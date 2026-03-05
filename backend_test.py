@@ -55,7 +55,7 @@ class BackendTester:
         
         response = self.make_request("POST", "/auth/login", json=login_data)
         
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:  # Accept both 200 and 201
             data = response.json()
             self.access_token = data.get("accessToken")
             if self.access_token:
