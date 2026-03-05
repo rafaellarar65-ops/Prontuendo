@@ -1,87 +1,18 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 
-export class UpdatePrescriptionItemDto {
-  @ApiPropertyOptional()
+import { CreatePrescriptionDto, PrescriptionItemDto } from './create-prescription.dto';
+
+export class UpdatePrescriptionDto extends PartialType(CreatePrescriptionDto) {
+  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'] })
   @IsOptional()
   @IsString()
-  medicationName?: string;
+  status?: 'ATIVA' | 'CANCELADA';
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  dosage?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  frequency?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  route?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  duration?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  instructions?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  quantity?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  unit?: string;
-}
-
-export class UpdatePrescriptionDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  patientId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  consultationId?: string;
-
-  @ApiPropertyOptional({ type: [UpdatePrescriptionItemDto] })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => UpdatePrescriptionItemDto)
-  items?: UpdatePrescriptionItemDto[];
-
-  @ApiPropertyOptional({ enum: ['REPLACE', 'APPEND'], default: 'REPLACE' })
-  @IsOptional()
-  @IsString()
-  @IsIn(['REPLACE', 'APPEND'])
-  itemsStrategy?: 'REPLACE' | 'APPEND';
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @ApiPropertyOptional({ type: String, format: 'date-time' })
-  @IsOptional()
-  @IsString()
-  validUntil?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  status?: string;
+  @Type(() => PrescriptionItemDto)
+  declare items?: PrescriptionItemDto[];
 }
