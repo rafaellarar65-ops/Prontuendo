@@ -162,8 +162,26 @@ class PrescriptionTemplateTester:
         template_data = {
             "name": "Laudo de Exame",
             "category": "laudo",
-            "content": "Paciente: {{patient.name}}\nExame: {{exam.type}}\nResultado: {{exam.result}}",
-            "variables": ["patient.name", "exam.type", "exam.result"]
+            "canvasJson": {
+                "version": "1.0",
+                "elements": [
+                    {
+                        "type": "text",
+                        "content": "Paciente: {{patient.name}}"
+                    },
+                    {
+                        "type": "text", 
+                        "content": "Exame: {{exam.type}}"
+                    },
+                    {
+                        "type": "text",
+                        "content": "Resultado: {{exam.result}}"
+                    }
+                ]
+            },
+            "metadata": {
+                "variables": ["patient.name", "exam.type", "exam.result"]
+            }
         }
         
         response = self.make_request("POST", "/templates", json=template_data)
