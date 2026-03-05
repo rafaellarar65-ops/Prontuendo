@@ -212,3 +212,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Backend API testing completed successfully. All core APIs for consultation tabs and patient navigation are working correctly. Minor issues found with Bioimpedance and Scores APIs (404 responses) but these don't block core functionality. Ready for frontend UI testing."
+  - agent: "testing"
+    message: "Additional backend testing completed for prescription and template APIs. All prescription APIs working correctly including creation, medication search, and digital signing. Template APIs working correctly including creation, listing, category filtering, rendering, and PDF export. Backend support for 'Nova Receita' and 'Novo Laudo' functionality is fully operational."
