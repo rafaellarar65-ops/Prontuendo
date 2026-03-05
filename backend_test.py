@@ -153,7 +153,9 @@ class BackendTester:
         
         # Test ANAMNESE (subjetivo) section
         anamnese_data = {
-            "subjetivo": "Paciente refere dor abdominal há 3 dias. Nega febre, náuseas ou vômitos. Histórico de diabetes tipo 2 controlada com metformina."
+            "anamnese": {
+                "text": "Paciente refere dor abdominal há 3 dias. Nega febre, náuseas ou vômitos. Histórico de diabetes tipo 2 controlada com metformina."
+            }
         }
         
         response = self.make_request("PATCH", f"/consultations/{self.consultation_id}/autosave", json=anamnese_data)
@@ -163,7 +165,9 @@ class BackendTester:
             
             # Test EXAME FÍSICO (objetivo) section
             exame_fisico_data = {
-                "objetivo": "PA: 130/80 mmHg, FC: 72 bpm, Peso: 75 kg, Altura: 1.70 m, IMC: 26.0, Abdome: doloroso à palpação em epigástrio"
+                "exameFisico": {
+                    "text": "PA: 130/80 mmHg, FC: 72 bpm, Peso: 75 kg, Altura: 1.70 m, IMC: 26.0, Abdome: doloroso à palpação em epigástrio"
+                }
             }
             
             response = self.make_request("PATCH", f"/consultations/{self.consultation_id}/autosave", json=exame_fisico_data)
@@ -173,7 +177,9 @@ class BackendTester:
                 
                 # Test PRESCRIÇÃO (plano) section
                 prescricao_data = {
-                    "plano": "1. Manter metformina 850mg 2x/dia\n2. Omeprazol 20mg 1x/dia por 14 dias\n3. Retorno em 30 dias"
+                    "prescricao": {
+                        "text": "1. Manter metformina 850mg 2x/dia\n2. Omeprazol 20mg 1x/dia por 14 dias\n3. Retorno em 30 dias"
+                    }
                 }
                 
                 response = self.make_request("PATCH", f"/consultations/{self.consultation_id}/autosave", json=prescricao_data)
