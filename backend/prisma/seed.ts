@@ -221,23 +221,21 @@ async function main() {
   let upsertedDocumentTemplates = 0
 
   if (prismaAny.drugTemplate) {
+    // First, clean up existing global templates
+    await prismaAny.drugTemplate.deleteMany({
+      where: { tenantId: globalTemplatesTenantId }
+    })
+
+    // Then create new templates
     for (const template of globalDrugTemplates) {
-      await prismaAny.drugTemplate.upsert({
-        where: {
-          tenantId_name: {
-            tenantId: globalTemplatesTenantId,
-            name: template.name,
-          },
-        },
-        update: {
-          group: template.group,
-          isGlobal: true,
+      await prismaAny.drugTemplate.create({
+        data: {
           tenantId: globalTemplatesTenantId,
-        },
-        create: {
-          tenantId: globalTemplatesTenantId,
-          name: template.name,
-          group: template.group,
+          genericName: template.name,
+          class: template.group,
+          defaultDose: '1x/dia',
+          defaultRoute: 'oral',
+          defaultFreq: '1x/dia',
           isGlobal: true,
         },
       })
