@@ -131,6 +131,30 @@ backend:
         agent: "testing"
         comment: "AI Clinical Brain API working correctly. Returns comprehensive clinical analysis with differential diagnoses, alerts, and suggestions."
 
+  - task: "Prescriptions API (Nova Receita Support)"
+    implemented: true
+    working: true
+    file: "/app/backend/src/prescriptions/prescriptions.controller.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Prescriptions API fully functional. Supports prescription creation, medication search, and digital signing. Backend ready for 'Nova Receita' button functionality."
+
+  - task: "Templates API (Novo Laudo Support)"
+    implemented: true
+    working: true
+    file: "/app/backend/src/templates/templates.controller.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Templates API fully functional. Supports template creation, listing, category filtering, rendering, and PDF export. Backend ready for 'Novo Laudo' button functionality."
+
 frontend:
   - task: "Consultation Tabs UI"
     implemented: true
