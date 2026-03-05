@@ -11,7 +11,7 @@ import os
 from typing import Dict, Any, Optional
 
 # Configuration
-API_BASE_URL = "/api/v1"  # Using relative path as per .env
+API_BASE_URL = "http://localhost:8001/api/v1"  # Backend running on port 8001
 TENANT_ID = "clitenant0000000000000001"  # From .env
 TEST_EMAIL = "rafaellarar65@gmail.com"
 TEST_PASSWORD = "12345678"
