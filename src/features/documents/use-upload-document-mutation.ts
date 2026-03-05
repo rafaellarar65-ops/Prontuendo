@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@/lib/api/documents-api';
+import { documentsApi, type UploadDocumentDto } from '@/lib/api/documents-api';
 import { queryKeys } from '@/lib/query/query-keys';
-import type { UploadDocumentDto } from '@/types/documents';
 
 export const useUploadDocumentMutation = () => {
   const qc = useQueryClient();

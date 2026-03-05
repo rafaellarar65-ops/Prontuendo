@@ -1,47 +1,56 @@
 import { http } from '@/lib/api/http';
-import type { Document, DocumentCategory, UploadDocumentDto } from '@/types/documents';
 
-interface ListPatientDocumentsFilters {
-  category?: DocumentCategory;
-  sharedWithPatient?: boolean;
+export interface PatientDocument {
+  id: string;
+  patientId: string;
+  fileName: string;
+  mimeType?: string | null;
+  category?: string | null;
+  description?: string | null;
+  isFromPortal: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UploadDocumentDto {
+  patientId: string;
+  file: File;
+  category: string;
+  description?: string;
 }
 
 export const documentsApi = {
-  async listByPatient(
-    patientId: string,
-    categoryOrFilters?: DocumentCategory | ListPatientDocumentsFilters,
-  ): Promise<Document[]> {
-    const filters =
-      typeof categoryOrFilters === "string" ? { category: categoryOrFilters } : categoryOrFilters;
-
-    const { data } = await http.get<Document[]>('/documents', {
+  async list(patientId: string, category?: string): Promise<PatientDocument[]> {
+    const { data } = await http.get<PatientDocument[]>('/documents', {
       params: {
         patientId,
-        ...(filters?.category ? { category: filters.category } : {}),
-        ...(filters?.sharedWithPatient !== undefined ? { sharedWithPatient: filters.sharedWithPatient } : {}),
+        ...(category ? { category } : {}),
       },
     });
+
     return data;
   },
 
-  async upload(dto: UploadDocumentDto): Promise<Document> {
+  async listByPatient(patientId: string, category?: string): Promise<PatientDocument[]> {
+    return documentsApi.list(patientId, category);
+  },
+
+  async upload(dto: UploadDocumentDto): Promise<PatientDocument> {
     const formData = new FormData();
-    formData.append('file', dto.file);
     formData.append('patientId', dto.patientId);
+    formData.append('file', dto.file);
     formData.append('category', dto.category);
-    formData.append('isFromPortal', String(dto.isFromPortal ?? false));
+
     if (dto.description) {
       formData.append('description', dto.description);
     }
 
-    const { data } = await http.post<Document>('/documents', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const { data } = await http.post<PatientDocument>('/documents/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-    return data;
-  },
 
-  async getById(id: string): Promise<Document> {
-    const { data } = await http.get<Document>(`/documents/${id}`);
     return data;
   },
 
@@ -49,6 +58,7 @@ export const documentsApi = {
     const { data } = await http.get<Blob>(`/documents/${id}/download`, {
       responseType: 'blob',
     });
+
     return data;
   },
 
