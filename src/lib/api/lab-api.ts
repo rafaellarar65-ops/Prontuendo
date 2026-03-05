@@ -25,4 +25,15 @@ export const labApi = {
     const { data } = await http.post<LabResult>('/lab-results', dto);
     return data;
   },
+
+  async analyze(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await http.post<any>('/lab-results/analyze', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
 };
