@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -17,6 +18,26 @@ export class LabResultsController {
   @ApiOperation({ summary: 'Criar resultado de exame laboratorial' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateLabResultDto) {
     return this.labResultsService.create(user.tenantId, dto.patientId, dto);
+  }
+
+  @Post('analyze')
+  @Roles('MEDICO', 'RECEPCAO')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Analisar laudo (imagem/PDF) via IA e extrair dados' })
+  analyze(@UploadedFile() file: Express.Multer.File) {
+    return this.labResultsService.analyze(file);
   }
 
   @Get()
