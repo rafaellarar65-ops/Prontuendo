@@ -1,43 +1,85 @@
-import { randomUUID } from 'crypto';
-
 import { Injectable } from '@nestjs/common';
 
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateTemplateDto } from './dto/create-template.dto';
+import { UpdateTemplateDto } from './dto/update-template.dto';
 
 @Injectable()
 export class TemplatesService {
-  private readonly store: Item[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
+  private get documentTemplate() {
+    return (this.prisma as any).documentTemplate;
   }
 
-  create(tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, payload, createdBy: actorId, createdAt: now, updatedAt: now };
-    this.store.push(item);
-    return item;
+  async findAll(tenantId: string) {
+    return this.documentTemplate.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  update(tenantId: string, id: string, payload: Record<string, unknown>) {
-    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (!item) {
+  async findById(tenantId: string, id: string) {
+    return this.documentTemplate.findFirst({
+      where: { id, tenantId },
+    });
+  }
+
+  async create(tenantId: string, actorId: string, dto: CreateTemplateDto) {
+    return this.documentTemplate.create({
+      data: {
+        tenantId,
+        createdBy: actorId,
+        ...dto,
+      },
+    });
+  }
+
+  async update(tenantId: string, id: string, dto: UpdateTemplateDto) {
+    const updated = await this.documentTemplate.updateMany({
+      where: { id, tenantId },
+      data: dto,
+    });
+
+    if (updated.count === 0) {
       return null;
     }
 
-    item.payload = { ...item.payload, ...payload };
-    item.updatedAt = new Date().toISOString();
-    return item;
+    return this.findById(tenantId, id);
   }
 
-  remove(tenantId: string, id: string) {
-    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (index < 0) {
-      return { deleted: false };
+  async delete(tenantId: string, id: string) {
+    const deleted = await this.documentTemplate.deleteMany({
+      where: { id, tenantId },
+    });
+
+    return { deleted: deleted.count > 0 };
+  }
+
+  async findByCategory(tenantId: string, category: string) {
+    return this.documentTemplate.findMany({
+      where: { tenantId, category },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async duplicate(tenantId: string, id: string, actorId: string) {
+    const source = await this.findById(tenantId, id);
+    if (!source) {
+      return null;
     }
 
-    this.store.splice(index, 1);
-    return { deleted: true };
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...templateData } = source;
+
+    return this.documentTemplate.create({
+      data: {
+        ...templateData,
+        tenantId,
+        createdBy: actorId,
+        name: `${source.name} (cópia)`,
+        canvasJson: source.canvasJson,
+      },
+    });
   }
 
   execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {

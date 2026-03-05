@@ -13,7 +13,7 @@ describe('BioimpedanceService', () => {
     }).compile();
 
     const service = moduleRef.get(BioimpedanceService);
-    await service.evolution('t1', 'p1');
+    await service.findByPatient('t1', 'p1');
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 't1', patientId: 'p1' } }));
   });

@@ -1,0 +1,464 @@
+diff --git a/src/features/documents/use-documents-query.ts b/src/features/documents/use-documents-query.ts
+index 90a81e9..3d1389d 100644
+--- a/src/features/documents/use-documents-query.ts
++++ b/src/features/documents/use-documents-query.ts
+@@ -1,11 +1,9 @@
+ import { useQuery } from '@tanstack/react-query';
+ import { documentsApi } from '@/lib/api/documents-api';
+ import { queryKeys } from '@/lib/query/query-keys';
+-import type { DocumentCategory } from '@/types/documents';
+
+-export const useDocumentsQuery = (patientId?: string, category?: DocumentCategory) =>
+-  useQuery({
+-    queryKey: queryKeys.documentsByPatient(patientId ?? 'empty', category),
+-    queryFn: () => documentsApi.listByPatient(patientId!, category),
+-    enabled: Boolean(patientId),
+-  });
++export const useDocumentsQuery = (patientId: string, category?: string) => useQuery({
++  queryKey: queryKeys.documents(patientId, category),
++  queryFn: () => documentsApi.list(patientId, category),
++  enabled: !!patientId,
++});
+diff --git a/src/features/documents/use-upload-document-mutation.ts b/src/features/documents/use-upload-document-mutation.ts
+index eb4bb00..6eead69 100644
+--- a/src/features/documents/use-upload-document-mutation.ts
++++ b/src/features/documents/use-upload-document-mutation.ts
+@@ -1,7 +1,5 @@
+ import { useMutation, useQueryClient } from '@tanstack/react-query';
+-import { documentsApi } from '@/lib/api/documents-api';
+-import { queryKeys } from '@/lib/query/query-keys';
+-import type { UploadDocumentDto } from '@/types/documents';
++import { documentsApi, type UploadDocumentDto } from '@/lib/api/documents-api';
+
+ export const useUploadDocumentMutation = () => {
+   const qc = useQueryClient();
+@@ -9,9 +7,7 @@ export const useUploadDocumentMutation = () => {
+   return useMutation({
+     mutationFn: (dto: UploadDocumentDto) => documentsApi.upload(dto),
+     onSuccess: (created) => {
+-      void qc.invalidateQueries({
+-        queryKey: queryKeys.documentsByPatient(created.patientId),
+-      });
++      void qc.invalidateQueries({ queryKey: ['documents', created.patientId] });
+     },
+   });
+ };
+diff --git a/src/lib/api/documents-api.ts b/src/lib/api/documents-api.ts
+index 30d6587..4f1e502 100644
+--- a/src/lib/api/documents-api.ts
++++ b/src/lib/api/documents-api.ts
+@@ -1,47 +1,52 @@
+ import { http } from '@/lib/api/http';
+-import type { Document, DocumentCategory, UploadDocumentDto } from '@/types/documents';
+
+-interface ListPatientDocumentsFilters {
+-  category?: DocumentCategory;
+-  sharedWithPatient?: boolean;
++export interface PatientDocument {
++  id: string;
++  patientId: string;
++  fileName: string;
++  mimeType?: string | null;
++  category?: string | null;
++  description?: string | null;
++  isFromPortal: boolean;
++  createdAt: string;
++  updatedAt: string;
++}
++
++export interface UploadDocumentDto {
++  patientId: string;
++  file: File;
++  category: string;
++  description?: string;
+ }
+
+ export const documentsApi = {
+-  async listByPatient(
+-    patientId: string,
+-    categoryOrFilters?: DocumentCategory | ListPatientDocumentsFilters,
+-  ): Promise<Document[]> {
+-    const filters =
+-      typeof categoryOrFilters === "string" ? { category: categoryOrFilters } : categoryOrFilters;
+-
+-    const { data } = await http.get<Document[]>('/documents', {
++  async list(patientId: string, category?: string): Promise<PatientDocument[]> {
++    const { data } = await http.get<PatientDocument[]>('/documents', {
+       params: {
+         patientId,
+-        ...(filters?.category ? { category: filters.category } : {}),
+-        ...(filters?.sharedWithPatient !== undefined ? { sharedWithPatient: filters.sharedWithPatient } : {}),
++        ...(category ? { category } : {}),
+       },
+     });
++
+     return data;
+   },
+
+-  async upload(dto: UploadDocumentDto): Promise<Document> {
++  async upload(dto: UploadDocumentDto): Promise<PatientDocument> {
+     const formData = new FormData();
+-    formData.append('file', dto.file);
+     formData.append('patientId', dto.patientId);
++    formData.append('file', dto.file);
+     formData.append('category', dto.category);
+-    formData.append('isFromPortal', String(dto.isFromPortal ?? false));
++
+     if (dto.description) {
+       formData.append('description', dto.description);
+     }
+
+-    const { data } = await http.post<Document>('/documents', formData, {
+-      headers: { 'Content-Type': 'multipart/form-data' },
++    const { data } = await http.post<PatientDocument>('/documents/upload', formData, {
++      headers: {
++        'Content-Type': 'multipart/form-data',
++      },
+     });
+-    return data;
+-  },
+
+-  async getById(id: string): Promise<Document> {
+-    const { data } = await http.get<Document>(`/documents/${id}`);
+     return data;
+   },
+
+@@ -49,10 +54,7 @@ export const documentsApi = {
+     const { data } = await http.get<Blob>(`/documents/${id}/download`, {
+       responseType: 'blob',
+     });
+-    return data;
+-  },
+
+-  async remove(id: string): Promise<void> {
+-    await http.delete(`/documents/${id}`);
++    return data;
+   },
+ };
+diff --git a/src/lib/query/query-keys.ts b/src/lib/query/query-keys.ts
+index 798a1ea..301f0c8 100644
+--- a/src/lib/query/query-keys.ts
++++ b/src/lib/query/query-keys.ts
+@@ -4,9 +4,6 @@ export const queryKeys = {
+   patientDetail: (patientId: string) => ['patients', patientId] as const,
+   consultations: ['consultations'] as const,
+   consultationById: (consultationId: string) => ['consultations', consultationId] as const,
+-  consultationVersions: (consultationId: string) => ['consultations', consultationId, 'versions'] as const,
+-  consultationVersion: (consultationId: string, version: number) =>
+-    ['consultations', consultationId, 'versions', version] as const,
+   consultationTemplates: ['consultation-templates'] as const,
+   appointments: ['appointments'] as const,
+   appointmentsByDate: (date: string) => ['appointments', date] as const,
+@@ -20,20 +17,18 @@ export const queryKeys = {
+     ['scores', 'history', patientId, scoreType ?? 'all'] as const,
+   scoresLatest: (patientId: string) => ['scores', 'latest', patientId] as const,
+   protocols: ['protocols'] as const,
+-  protocolsByCondition: (condition: string) => ['protocols', 'condition', condition] as const,
+   glucose: (patientId: string) => ['glucose', patientId] as const,
+   labResults: (patientId: string) => ['lab-results', patientId] as const,
+-  documentsByPatient: (patientId: string, category?: string) =>
+-    ['documents', patientId, category ?? 'all'] as const,
+   prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
+   activePrescriptions: (patientId: string) => ['prescriptions', 'active', patientId] as const,
+   prescriptionsByConsultation: (consultationId: string) =>
+     ['prescriptions', 'consultation', consultationId] as const,
+   drugTemplates: ['prescriptions', 'drug-templates'] as const,
+   analysis: (patientId: string) => ['analysis', patientId] as const,
+-  patientPortalDocuments: (patientId: string) => ['patient-portal', 'documents', patientId] as const,
+   glucoseHistory: (patientId: string) => ['glucose', patientId, 'history'] as const,
+   glucoseAnalysis: (patientId: string) => ['glucose', patientId, 'analysis'] as const,
+   labResultsHistory: (patientId: string, examName?: string) =>
+     ['lab-results', patientId, examName ?? 'all'] as const,
++  documents: (patientId: string, category?: string) =>
++    ['documents', patientId, category ?? 'all'] as const,
+ };
+diff --git a/src/pages/patient/documents-page.tsx b/src/pages/patient/documents-page.tsx
+index bd4df0f..5e2bb6e 100644
+--- a/src/pages/patient/documents-page.tsx
++++ b/src/pages/patient/documents-page.tsx
+@@ -1,246 +1,67 @@
+-import { ChangeEvent, useMemo, useState } from 'react';
+-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+-import { documentsApi } from '@/lib/api/documents-api';
+-import { queryKeys } from '@/lib/query/query-keys';
+-import { usePatientAuthStore } from '@/lib/stores/patient-auth-store';
+-import type { Document, DocumentCategory } from '@/types/documents';
++import { useState } from 'react';
+
+-const formatDate = (isoDate: string) => {
+-  const date = new Date(isoDate);
+-  if (Number.isNaN(date.getTime())) {
+-    return 'Data indisponível';
+-  }
+-
+-  return new Intl.DateTimeFormat('pt-BR').format(date);
++type PatientDoc = {
++  id: string;
++  name: string;
++  date: string;
++  fileUrl: string;
+ };
+
+-const CATEGORIES: Array<{ value: DocumentCategory; label: string }> = [
+-  { value: 'EXAME', label: 'Exame' },
+-  { value: 'RECEITA', label: 'Receita' },
+-  { value: 'ATESTADO', label: 'Atestado' },
+-  { value: 'RELATORIO', label: 'Relatório' },
+-  { value: 'OUTRO', label: 'Outro' },
++const docs: PatientDoc[] = [
++  { id: '1', name: 'Receita de Metformina', date: '10/11/2026', fileUrl: '/docs/receita-metformina.pdf' },
++  { id: '2', name: 'Atestado de comparecimento', date: '02/11/2026', fileUrl: '/docs/atestado.pdf' },
++  { id: '3', name: 'Relatório médico mensal', date: '28/10/2026', fileUrl: '/docs/relatorio.pdf' },
+ ];
+
+-const getOriginBadge = (doc: Document) => {
+-  if (doc.isFromPortal) {
+-    return {
+-      label: 'Enviado pelo portal',
+-      className: 'border-blue-200 bg-blue-50 text-blue-700',
+-    };
+-  }
+-
+-  return {
+-    label: 'Compartilhado pela clínica',
+-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+-  };
+-};
+-
+-const downloadDocument = async (doc: Document) => {
+-  const blob = await documentsApi.download(doc.id);
+-  const url = URL.createObjectURL(blob);
+-
+-  const anchor = window.document.createElement('a');
+-  anchor.href = url;
+-  anchor.download = doc.fileName;
+-  anchor.click();
+-
+-  URL.revokeObjectURL(url);
+-};
+-
+ export const DocumentsPage = () => {
+-  const patient = usePatientAuthStore((state) => state.patient);
+-  const patientId = patient?.patientId;
+-  const qc = useQueryClient();
+-
+   const [feedback, setFeedback] = useState('');
+-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+-  const [category, setCategory] = useState<DocumentCategory>('EXAME');
+-  const [description, setDescription] = useState('');
+-
+-  const documentsQuery = useQuery({
+-    queryKey: queryKeys.documentsByPatient(patientId ?? 'unknown', 'patient-visible'),
+-    queryFn: () => documentsApi.listByPatient(patientId!, { sharedWithPatient: true }),
+-    enabled: Boolean(patientId),
+-  });
+-
+-  const uploadMutation = useMutation({
+-    mutationFn: () => {
+-      if (!selectedFile || !patientId) {
+-        throw new Error('Arquivo ou paciente ausente');
+-      }
+-
+-      const payload = {
+-        file: selectedFile,
+-        patientId,
+-        category,
+-        isFromPortal: true,
+-        ...(description.trim() ? { description: description.trim() } : {}),
+-      };
+-
+-      return documentsApi.upload(payload);
+-    },
+-    onSuccess: async () => {
+-      setFeedback('Documento enviado com sucesso.');
+-      setSelectedFile(null);
+-      setDescription('');
+-      await qc.invalidateQueries({ queryKey: queryKeys.documentsByPatient(patientId ?? 'unknown', 'patient-visible') });
+-    },
+-    onError: () => {
+-      setFeedback('Falha ao enviar documento. Tente novamente.');
+-    },
+-  });
+-
+-  const onFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+-    const file = event.target.files?.[0] ?? null;
+-    setSelectedFile(file);
+-  };
+-
+-  const onUpload = async () => {
+-    if (!selectedFile || !patientId) {
+-      setFeedback('Selecione um arquivo para enviar.');
+-      return;
+-    }
+
+-    setFeedback('');
+-    await uploadMutation.mutateAsync();
+-  };
+-
+-  const onShare = async (doc: Document) => {
++  const onShare = async (doc: PatientDoc) => {
+     if (!navigator.share) {
+       setFeedback('Seu celular não suporta compartilhamento direto.');
+       return;
+     }
+
+     try {
+-      const blob = await documentsApi.download(doc.id);
+-      const file = new File([blob], doc.fileName, { type: doc.mimeType || blob.type || 'application/octet-stream' });
+-
+-      if (navigator.canShare?.({ files: [file] })) {
+-        await navigator.share({
+-          title: doc.fileName,
+-          text: `Documento: ${doc.fileName}`,
+-          files: [file],
+-        });
+-      } else {
+-        await navigator.share({
+-          title: doc.fileName,
+-          text: `Documento: ${doc.fileName}`,
+-        });
+-      }
+-
+-      setFeedback(`Documento "${doc.fileName}" compartilhado.`);
++      await navigator.share({
++        title: doc.name,
++        text: `Documento: ${doc.name}`,
++        url: window.location.origin + doc.fileUrl,
++      });
++      setFeedback(`Documento "${doc.name}" compartilhado.`);
+     } catch {
+       setFeedback('Compartilhamento cancelado.');
+     }
+   };
+
+-  const docs = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
+-
+-  if (!patientId) {
+-    return (
+-      <section className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-amber-900">
+-        Não conseguimos identificar seu paciente. Faça login novamente para acessar seus documentos.
+-      </section>
+-    );
+-  }
+-
+   return (
+     <section className="space-y-4">
+       <h1 className="text-2xl font-bold text-slate-900">Meus documentos</h1>
+-
+-      <div className="space-y-3 rounded-xl border-2 border-slate-300 bg-white p-4">
+-        <label htmlFor="patient-doc-upload" className="block text-sm font-semibold text-slate-900">
+-          Enviar exame/documento
+-        </label>
+-
+-        <input
+-          id="patient-doc-upload"
+-          type="file"
+-          accept="image/*,.pdf"
+-          onChange={onFileSelect}
+-          disabled={uploadMutation.isPending}
+-          className="h-12 w-full rounded-xl border-2 border-slate-400 px-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-800 file:px-3 file:py-2 file:text-white disabled:opacity-60"
+-        />
+-
+-        <label className="block text-sm font-semibold text-slate-900">
+-          Categoria
+-          <select
+-            value={category}
+-            onChange={(event) => setCategory(event.target.value as DocumentCategory)}
+-            className="mt-2 h-12 w-full rounded-xl border-2 border-slate-400 bg-white px-3 text-sm"
+-            disabled={uploadMutation.isPending}
+-          >
+-            {CATEGORIES.map((option) => (
+-              <option key={option.value} value={option.value}>
+-                {option.label}
+-              </option>
+-            ))}
+-          </select>
+-        </label>
+-
+-        <label className="block text-sm font-semibold text-slate-900">
+-          Descrição (opcional)
+-          <textarea
+-            value={description}
+-            onChange={(event) => setDescription(event.target.value)}
+-            placeholder="Ex.: Exame de sangue de rotina"
+-            disabled={uploadMutation.isPending}
+-            rows={3}
+-            className="mt-2 w-full rounded-xl border-2 border-slate-400 px-3 py-2 text-sm"
+-          />
+-        </label>
+-
+-        <button
+-          type="button"
+-          onClick={onUpload}
+-          disabled={uploadMutation.isPending || !selectedFile}
+-          className="h-12 w-full rounded-xl border-2 border-blue-800 bg-blue-800 px-4 text-base font-semibold text-white disabled:opacity-60"
+-        >
+-          {uploadMutation.isPending ? 'Enviando...' : 'Enviar documento'}
+-        </button>
+-      </div>
+-
+-      {documentsQuery.isLoading && <p className="text-sm text-slate-700">Carregando documentos...</p>}
+-      {documentsQuery.isError && <p className="text-sm text-red-700">Não foi possível carregar os documentos.</p>}
+-
+       <ul className="space-y-2">
+-        {docs.map((doc) => {
+-          const badge = getOriginBadge(doc);
+-
+-          return (
+-            <li key={doc.id} className="rounded-xl border-2 border-slate-300 bg-white p-4">
+-              <div className="flex items-start justify-between gap-3">
+-                <p className="text-base font-bold text-slate-900">{doc.fileName}</p>
+-                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+-              </div>
+-              <p className="text-sm text-slate-700">Enviado em {formatDate(doc.uploadedAt || doc.createdAt)}</p>
+-              {doc.description ? <p className="mt-1 text-sm text-slate-600">{doc.description}</p> : null}
+-              <div className="mt-3 grid grid-cols-2 gap-2">
+-                <button
+-                  type="button"
+-                  onClick={() => downloadDocument(doc)}
+-                  className="flex h-12 items-center justify-center rounded-xl border-2 border-blue-800 px-4 text-base font-semibold text-blue-900"
+-                >
+-                  Baixar arquivo
+-                </button>
+-                <button
+-                  type="button"
+-                  onClick={() => onShare(doc)}
+-                  className="h-12 rounded-xl border-2 border-slate-500 px-4 text-base font-semibold text-slate-800"
+-                >
+-                  Compartilhar
+-                </button>
+-              </div>
+-            </li>
+-          );
+-        })}
++        {docs.map((doc) => (
++          <li key={doc.id} className="rounded-xl border-2 border-slate-300 bg-white p-4">
++            <p className="text-base font-bold text-slate-900">{doc.name}</p>
++            <p className="text-sm text-slate-700">Emitido em {doc.date}</p>
++            <div className="mt-3 grid grid-cols-2 gap-2">
++              <a
++                href={doc.fileUrl}
++                className="flex h-12 items-center justify-center rounded-xl border-2 border-blue-800 px-4 text-base font-semibold text-blue-900"
++                download
++              >
++                Baixar PDF
++              </a>
++              <button
++                type="button"
++                onClick={() => onShare(doc)}
++                className="h-12 rounded-xl border-2 border-slate-500 px-4 text-base font-semibold text-slate-800"
++              >
++                Compartilhar
++              </button>
++            </div>
++          </li>
++        ))}
+       </ul>
+
+-      {!documentsQuery.isLoading && !docs.length && (
+-        <p className="text-sm text-slate-600">Nenhum documento compartilhado com você até o momento.</p>
+-      )}
+-
+       {feedback && <p className="rounded-xl border-2 border-slate-300 bg-white p-3 text-sm text-slate-800">{feedback}</p>}
+     </section>
+   );

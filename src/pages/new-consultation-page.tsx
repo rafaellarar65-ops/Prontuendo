@@ -1,10 +1,91 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Check, ChevronDown, Loader2, Save, Search, X } from 'lucide-react';import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { consultationApi, ConsultationDraft } from '@/lib/api/consultation-api';
+import { Bot, Check, ChevronDown, History, Loader2, Save, Search, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { consultationApi, ConsultationDraft, ConsultationVersionDetail } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
-import { aiApi } from '@/lib/api/ai-api';
+import { aiApi, type AssistConsultationResponse } from '@/lib/api/ai-api';
+import { useProtocolsByConditionQuery } from '@/features/protocols/use-protocols-query';
+import { useConsultationVersionQuery, useConsultationVersionsQuery } from '@/features/consultations/use-consultation-versions-query';
 import type { Patient } from '@/types/api';
+
+
+const CONDITIONS = {
+  DM2: 'DM2',
+  Hipotireoidismo: 'Hipotireoidismo',
+  Obesidade: 'Obesidade',
+  Osteoporose: 'Osteoporose',
+} as const;
+
+const CONDITION_MATCHERS: Array<{ condition: string; patterns: RegExp[] }> = [
+  {
+    condition: CONDITIONS.DM2,
+    patterns: [
+      /\bdm\s*2\b/i,
+      /\bdm2\b/i,
+      /diabetes\s*mellitus\s*tipo\s*2/i,
+      /diabetes\s*tipo\s*2/i,
+    ],
+  },
+  {
+    condition: CONDITIONS.Hipotireoidismo,
+    patterns: [/hipotireoidismo/i, /hipotireoide/i, /\be03\b/i],
+  },
+  { condition: CONDITIONS.Obesidade, patterns: [/obesidade/i, /\be66\b/i] },
+  {
+    condition: CONDITIONS.Osteoporose,
+    patterns: [/osteoporose/i, /\bm80\b/i, /\bm81\b/i],
+  },
+];
+
+const normalizeConditionFromAssessment = (assessment: string): string | null => {
+  if (!assessment) return null;
+
+  const normalized = assessment
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const match = CONDITION_MATCHERS.find(({ patterns }) =>
+    patterns.some((pattern) => pattern.test(normalized)),
+  );
+
+  return match?.condition ?? null;
+};
+
+const extractSectionText = (content: Record<string, unknown> | null | undefined, key: string): string => {
+  const candidate = content?.[key];
+  if (candidate && typeof candidate === 'object' && 'text' in candidate) {
+    return typeof (candidate as { text?: unknown }).text === 'string' ? (candidate as { text: string }).text : '';
+  }
+
+  return '';
+};
+
+const versionContentToDraft = (content: Record<string, unknown> | null | undefined): ConsultationDraft => ({
+  subjetivo: extractSectionText(content, 'anamnese'),
+  objetivo: extractSectionText(content, 'exameFisico'),
+  avaliacao: extractSectionText(content, 'diagnostico'),
+  plano: extractSectionText(content, 'prescricao'),
+});
+
+const formatRelativeTime = (isoDate: string): string => {
+  const diffMs = new Date(isoDate).getTime() - Date.now();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
+
+  if (Math.abs(diffMinutes) < 60) {
+    return rtf.format(diffMinutes, 'minute');
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return rtf.format(diffHours, 'hour');
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(diffDays, 'day');
+};
 
 // ── Patient Selector ─────────────────────────────────────────────
 const PatientSelector = ({
@@ -143,7 +224,7 @@ const AiPanel = ({
   patient: Patient | null;
   draft: ConsultationDraft;
 }) => {
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<AssistConsultationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -153,12 +234,13 @@ const AiPanel = ({
     setError('');
     try {
       const r = await aiApi.assistConsultation({
+        patientId: patient.id,
         patient: { name: patient.fullName, age: patient.birthDate ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / 3.156e10) : null },
         queixas: draft.subjetivo ?? '',
         historico: draft.objetivo ?? '',
         avaliacao: draft.avaliacao ?? '',
       });
-      setResult(r as Record<string, unknown>);
+      setResult(r);
     } catch {
       setError('Erro ao chamar assistente IA. Verifique a chave Gemini.');
     } finally {
@@ -188,17 +270,28 @@ const AiPanel = ({
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
       {result && !loading && (
         <div className="space-y-3 text-xs">
-          {(result as any).clinicalSummary && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700">
+            <p className="font-semibold">
+              IA tem acesso a: {result.dataAvailability.glucoseCount} glicemias, {result.dataAvailability.labCount} exames, {result.dataAvailability.bioCount} bioimpedâncias, {result.dataAvailability.consultationCount} consultas anteriores
+            </p>
+            <ul className="mt-1 space-y-0.5 text-[11px]">
+              {result.dataAvailability.glucoseCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.labCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.bioCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+              {result.dataAvailability.consultationCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
+            </ul>
+          </div>
+          {result.clinicalSummary && (
             <div>
               <p className="font-semibold text-slate-700 mb-1">Resumo clínico</p>
-              <p className="text-slate-600 leading-relaxed">{(result as any).clinicalSummary}</p>
+              <p className="text-slate-600 leading-relaxed">{result.clinicalSummary}</p>
             </div>
           )}
-          {(result as any).differentialDiagnoses?.length > 0 && (
+          {(result.differentialDiagnoses?.length ?? 0) > 0 && (
             <div>
               <p className="font-semibold text-slate-700 mb-1">Hipóteses diagnósticas</p>
               <ul className="space-y-1">
-                {(result as any).differentialDiagnoses.slice(0, 3).map((d: any, i: number) => (
+                {(result.differentialDiagnoses ?? []).slice(0, 3).map((d, i: number) => (
                   <li key={i} className="rounded-lg bg-indigo-50 px-2 py-1.5">
                     <p className="font-medium text-indigo-800">{d.hypothesis}</p>
                     <p className="text-indigo-600">{d.clinicalRationale}</p>
@@ -207,17 +300,17 @@ const AiPanel = ({
               </ul>
             </div>
           )}
-          {(result as any).redFlags?.length > 0 && (
+          {(result.redFlags?.length ?? 0) > 0 && (
             <div>
               <p className="font-semibold text-rose-600 mb-1">Alertas</p>
               <ul className="space-y-0.5">
-                {(result as any).redFlags.map((f: string, i: number) => (
+                {(result.redFlags ?? []).map((f: string, i: number) => (
                   <li key={i} className="text-rose-600">• {f}</li>
                 ))}
               </ul>
             </div>
           )}
-          <p className="text-slate-400 italic leading-relaxed">{(result as any).safety?.disclaimer}</p>
+          <p className="text-slate-400 italic leading-relaxed">{result.safety?.disclaimer}</p>
         </div>
       )}
     </aside>
@@ -238,7 +331,45 @@ export const NewConsultationPage = () => {
   const [draft, setDraft] = useState<ConsultationDraft>({ subjetivo: '', objetivo: '', avaliacao: '', plano: '' });
   const [saved, setSaved] = useState(false);
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
+  const [debouncedAssessment, setDebouncedAssessment] = useState('');
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    const nextAssessment = draft.avaliacao?.trim() ?? '';
+
+    if (nextAssessment.length < 4) {
+      setDebouncedAssessment('');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedAssessment(nextAssessment);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [draft.avaliacao]);
+
+  const recognizedCondition = useMemo(
+    () => normalizeConditionFromAssessment(debouncedAssessment),
+    [debouncedAssessment],
+  );
+
+  const { data: protocolsByCondition, isFetching: isFetchingProtocols } = useProtocolsByConditionQuery(recognizedCondition ?? undefined);
+  const { data: versions = [], isLoading: isLoadingVersions } = useConsultationVersionsQuery(consultationId);
+  const latestVersion = versions[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedVersionNumber && latestVersion) {
+      setSelectedVersionNumber(latestVersion.version);
+    }
+  }, [latestVersion, selectedVersionNumber]);
+
+  const { data: selectedVersion, isLoading: isLoadingVersionDetail } = useConsultationVersionQuery(
+    consultationId,
+    historyOpen ? selectedVersionNumber : null,
+  );
 
   // Pre-select patient from URL
   useEffect(() => {
@@ -302,6 +433,27 @@ export const NewConsultationPage = () => {
     finalizeMutation.mutate(consultationId);
   };
 
+  const handleRestoreVersion = (versionDetail: ConsultationVersionDetail) => {
+    if (!consultationId || versionDetail.isFinal) return;
+
+    const restoredDraft = versionContentToDraft(versionDetail.content);
+    setDraft(restoredDraft);
+    clearTimeout(autoSaveTimer.current);
+    setSavingStatus('saving');
+    autosaveMutation.mutate({ id: consultationId, d: restoredDraft });
+  };
+
+  const diffSections = useMemo(() => {
+    const selectedDraft = versionContentToDraft(selectedVersion?.content);
+
+    return [
+      { key: 'subjetivo', label: 'S', changed: (selectedDraft.subjetivo ?? '').trim() !== (draft.subjetivo ?? '').trim() },
+      { key: 'objetivo', label: 'O', changed: (selectedDraft.objetivo ?? '').trim() !== (draft.objetivo ?? '').trim() },
+      { key: 'avaliacao', label: 'A', changed: (selectedDraft.avaliacao ?? '').trim() !== (draft.avaliacao ?? '').trim() },
+      { key: 'plano', label: 'P', changed: (selectedDraft.plano ?? '').trim() !== (draft.plano ?? '').trim() },
+    ];
+  }, [selectedVersion?.content, draft]);
+
   const isEmpty = !draft.subjetivo && !draft.objetivo && !draft.avaliacao && !draft.plano;
 
   return (
@@ -311,8 +463,21 @@ export const NewConsultationPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Nova Consulta</h1>
           <p className="text-sm text-slate-500 mt-0.5">Prontuário SOAP com salvamento automático</p>
+          {latestVersion && (
+            <p className="text-xs text-slate-400 mt-1">
+              v{latestVersion.version} — última alteração {formatRelativeTime(latestVersion.createdAt)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((prev) => !prev)}
+            disabled={!consultationId}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40"
+          >
+            <History size={14} /> Histórico ({versions.length})
+          </button>
           {savingStatus === 'saving' && (
             <span className="flex items-center gap-1.5 text-xs text-slate-400">
               <Loader2 size={12} className="animate-spin" /> Salvando...
@@ -360,7 +525,12 @@ export const NewConsultationPage = () => {
             <h2 className="text-sm font-semibold text-slate-700">Paciente</h2>
             <PatientSelector
               selected={patient}
-              onSelect={(p) => { setPatient(p); setConsultationId(null); }}
+              onSelect={(p) => {
+                setPatient(p);
+                setConsultationId(null);
+                setSelectedVersionNumber(null);
+                setHistoryOpen(false);
+              }}
             />
             {createMutation.isPending && (
               <p className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -393,6 +563,19 @@ export const NewConsultationPage = () => {
               onChange={handleChange}
               placeholder="1. Diabetes Mellitus tipo 2 — controlada / 2. Obesidade grau II..."
             />
+            {recognizedCondition && (protocolsByCondition?.length ?? 0) > 0 && (
+              <div className="-mt-2 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs">
+                <span className="font-medium text-emerald-800">Protocolo disponível para {recognizedCondition}</span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/protocolos?condition=${encodeURIComponent(recognizedCondition)}`)}
+                  className="rounded-md border border-emerald-200 bg-white px-2 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Visualizar/aplicar
+                </button>
+                {isFetchingProtocols && <Loader2 size={12} className="animate-spin text-emerald-600" />}
+              </div>
+            )}
             <SoapSection
               label="Plano — Conduta terapêutica"
               field="plano"
@@ -407,6 +590,85 @@ export const NewConsultationPage = () => {
         {/* AI Panel */}
         <AiPanel patient={patient} draft={draft} />
       </div>
+
+      <div
+        className={`fixed inset-0 z-40 bg-slate-900/20 transition-opacity ${historyOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setHistoryOpen(false)}
+      />
+      <aside
+        className={`fixed right-0 top-0 z-50 h-full w-80 border-l border-slate-200 bg-white shadow-xl transition-transform ${historyOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-700">Histórico de versões</h3>
+          <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-md p-1 text-slate-500 hover:bg-slate-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid h-[calc(100%-53px)] grid-rows-[1fr_1fr]">
+          <div className="overflow-auto border-b border-slate-100 p-3 space-y-2">
+            {isLoadingVersions && <p className="text-xs text-slate-500">Carregando versões...</p>}
+            {!isLoadingVersions && versions.length === 0 && <p className="text-xs text-slate-500">Sem versões disponíveis.</p>}
+            {versions.map((v) => (
+              <button
+                key={v.version}
+                type="button"
+                onClick={() => setSelectedVersionNumber(v.version)}
+                className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${selectedVersionNumber === v.version ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-700">v{v.version}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${v.isFinal ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {v.isFinal ? 'Final' : 'Rascunho'}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{new Date(v.createdAt).toLocaleString('pt-BR')}</p>
+              </button>
+            ))}
+          </div>
+
+          <div className="overflow-auto p-3 space-y-3">
+            {!selectedVersionNumber && <p className="text-xs text-slate-500">Selecione uma versão para visualizar.</p>}
+            {isLoadingVersionDetail && <p className="text-xs text-slate-500">Carregando conteúdo...</p>}
+            {selectedVersion && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-700">Comparação com rascunho atual</p>
+                  <button
+                    type="button"
+                    onClick={() => handleRestoreVersion(selectedVersion)}
+                    disabled={selectedVersion.isFinal || saved}
+                    className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Restaurar esta versão
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5">
+                  {diffSections.map((section) => (
+                    <div
+                      key={section.key}
+                      className={`rounded-md px-2 py-1 text-center text-[11px] font-semibold ${section.changed ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}
+                    >
+                      {section.label}: {section.changed ? 'Mudou' : 'Igual'}
+                    </div>
+                  ))}
+                </div>
+
+                {selectedVersion.isFinal && (
+                  <p className="rounded-md bg-purple-50 px-2 py-1.5 text-[11px] text-purple-700">
+                    Versão final da consulta. Restauração indisponível.
+                  </p>
+                )}
+
+                <pre className="max-h-56 overflow-auto rounded-lg bg-slate-900 p-2 text-[11px] text-slate-100">
+                  {JSON.stringify(selectedVersion.content, null, 2)}
+                </pre>
+              </>
+            )}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 };

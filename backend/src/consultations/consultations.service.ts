@@ -1,16 +1,22 @@
 import { createHash } from 'crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConsultationStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 import { ListConsultationsDto } from './dto/list-consultations.dto';
+import { SoapPdfService } from './soap-pdf.service';
 import { UpsertConsultationSectionDto } from './dto/upsert-consultation-section.dto';
 
 @Injectable()
 export class ConsultationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ConsultationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly soapPdfService: SoapPdfService,
+  ) {}
 
   async create(tenantId: string, clinicianId: string, dto: CreateConsultationDto) {
     const consultation = await this.prisma.consultation.create({
@@ -51,6 +57,51 @@ export class ConsultationsService {
       take: query.perPage,
       orderBy: { updatedAt: 'desc' },
     });
+  }
+
+  async getVersions(tenantId: string, consultationId: string) {
+    const consultation = await this.prisma.consultation.findFirst({
+      where: { id: consultationId, tenantId },
+      select: { id: true },
+    });
+
+    if (!consultation) {
+      throw new NotFoundException('Consulta não encontrada');
+    }
+
+    return this.prisma.consultationVersion.findMany({
+      where: { consultationId },
+      select: {
+        version: true,
+        isFinal: true,
+        hash: true,
+        createdAt: true,
+      },
+      orderBy: { version: 'desc' },
+    });
+  }
+
+  async getVersion(tenantId: string, consultationId: string, version: number) {
+    const consultationVersion = await this.prisma.consultationVersion.findFirst({
+      where: {
+        consultationId,
+        version,
+        consultation: { tenantId },
+      },
+      select: {
+        version: true,
+        isFinal: true,
+        hash: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    if (!consultationVersion) {
+      throw new NotFoundException('Versão da consulta não encontrada');
+    }
+
+    return consultationVersion;
   }
 
   async autosave(tenantId: string, clinicianId: string, id: string, dto: UpsertConsultationSectionDto) {
@@ -118,7 +169,7 @@ export class ConsultationsService {
     const content = (consultation.latestDraft ?? {}) as Prisma.InputJsonObject;
     const hash = createHash('sha256').update(JSON.stringify(content)).digest('hex');
 
-    return this.prisma.$transaction(async (trx) => {
+    const finalized = await this.prisma.$transaction(async (trx) => {
       const finalized = await trx.consultation.update({
         where: { id_tenantId: { id, tenantId } },
         data: {
@@ -153,5 +204,74 @@ export class ConsultationsService {
         hash,
       };
     });
+
+    try {
+      const latestDraft = (consultation.latestDraft ?? {}) as Record<string, unknown>;
+      const pdf = await this.soapPdfService.createSoapSummaryPdf({
+        tenantId,
+        patientId: consultation.patientId,
+        consultationId: id,
+        latestDraft,
+      });
+
+      await this.prisma.$transaction(async (trx) => {
+        const document = await trx.document.create({
+          data: {
+            tenantId,
+            patientId: consultation.patientId,
+            consultationId: id,
+            category: 'LAUDO',
+            fileName: pdf.fileName,
+            storageKey: pdf.storageKey,
+            fileSize: pdf.fileSize,
+            mimeType: pdf.mimeType,
+            isFromPortal: false,
+            uploadedById: clinicianId,
+          },
+        });
+
+        await trx.activityLog.create({
+          data: {
+            tenantId,
+            actorId: clinicianId,
+            action: 'FINALIZE_SOAP_PDF_CREATED',
+            resource: 'consultation',
+            metadata: {
+              consultationId: id,
+              documentId: document.id,
+              storageKey: pdf.storageKey,
+            },
+          },
+        });
+      });
+    } catch (error) {
+      // Política adotada: a consulta permanece finalizada e apenas a geração do PDF é tratada como falha não-bloqueante.
+      // Motivo: o processo inclui I/O de filesystem, que não participa de transação ACID do banco.
+      this.logger.error(
+        JSON.stringify({
+          message: 'Falha ao gerar PDF SOAP',
+          consultationId: id,
+          tenantId,
+          clinicianId,
+          error: error instanceof Error ? error.message : 'Erro desconhecido ao gerar PDF SOAP',
+        }),
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      await this.prisma.activityLog.create({
+        data: {
+          tenantId,
+          actorId: clinicianId,
+          action: 'FINALIZE_SOAP_PDF_FAILED',
+          resource: 'consultation',
+          metadata: {
+            consultationId: id,
+            error: error instanceof Error ? error.message : 'Erro desconhecido ao gerar PDF SOAP',
+          },
+        },
+      });
+    }
+
+    return finalized;
   }
 }

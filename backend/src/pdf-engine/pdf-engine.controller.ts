@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Res, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
@@ -37,8 +38,14 @@ export class PdfEngineController {
 
   @Post('render')
   @ApiOperation({ summary: 'Renderizar PDF via engine' })
-  render(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('render', user.tenantId, user.sub, dto.payload);
+  async render(@Body() dto: GenericPayloadDto, @Res({ passthrough: true }) response: Response) {
+    const payload = dto.payload as { canvasJson?: unknown };
+    const pdfBuffer = await this.service.renderPdf(payload.canvasJson ?? dto.payload);
+
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', 'inline; filename="template.pdf"');
+
+    return new StreamableFile(pdfBuffer);
   }
 
   @Get(':id/status')
@@ -46,5 +53,4 @@ export class PdfEngineController {
   status(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.execute('status', user.tenantId, user.sub, { id });
   }
-
 }

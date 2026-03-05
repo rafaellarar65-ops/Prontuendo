@@ -1,18 +1,31 @@
 import { Test } from '@nestjs/testing';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { TemplatesService } from './templates.service';
 
 describe('TemplatesService', () => {
-  it('deve criar e listar por tenant', async () => {
+  it('deve filtrar consultas por tenant', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
-      providers: [TemplatesService],
+      providers: [
+        TemplatesService,
+        {
+          provide: PrismaService,
+          useValue: {
+            documentTemplate: {
+              findMany,
+            },
+          },
+        },
+      ],
     }).compile();
 
     const service = moduleRef.get(TemplatesService);
-    service.create('t1', 'u1', { nome: 'x' });
-    service.create('t2', 'u2', { nome: 'y' });
+    await service.findAll('t1');
 
-    expect(service.list('t1')).toHaveLength(1);
-    expect(service.list('t2')).toHaveLength(1);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { tenantId: 't1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 });

@@ -10,7 +10,9 @@ export interface ConsultationDraft {
   avaliacao?: string;
   plano?: string;
   [key: string]: unknown;
-}export interface ConsultationRecord {
+}
+
+export interface ConsultationRecord {
   id: string;
   tenantId: string;
   patientId: string;
@@ -21,6 +23,17 @@ export interface ConsultationDraft {
   updatedAt: string;
   finalizedAt?: string;
   patient?: { id: string; fullName: string };
+}
+
+export interface ConsultationVersionSummary {
+  version: number;
+  isFinal: boolean;
+  hash: string | null;
+  createdAt: string;
+}
+
+export interface ConsultationVersionDetail extends ConsultationVersionSummary {
+  content: Record<string, unknown>;
 }
 
 export const consultationApi = {
@@ -47,6 +60,14 @@ export const consultationApi = {
     const { data } = await http.post<ConsultationRecord & { finalVersion: number; hash: string }>(
       `/consultations/${id}/finalize`,
     );
+    return data;
+  },
+  async listVersions(id: string): Promise<ConsultationVersionSummary[]> {
+    const { data } = await http.get<ConsultationVersionSummary[]>(`/consultations/${id}/versions`);
+    return data;
+  },
+  async getVersion(id: string, version: number): Promise<ConsultationVersionDetail> {
+    const { data } = await http.get<ConsultationVersionDetail>(`/consultations/${id}/versions/${version}`);
     return data;
   },
 };

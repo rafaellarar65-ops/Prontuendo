@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   FlaskConical,
+  Pill,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -37,6 +38,7 @@ const navGroups = [
       { to: '/consultas/nova', label: 'Nova Consulta', icon: Stethoscope, end: false },
       { to: '/bioimpedancia', label: 'Bioimpedância', icon: Activity, end: false },
       { to: '/exames', label: 'Exames', icon: FlaskConical, end: false },
+      { to: '/prescricoes', label: 'Prescrições', icon: Pill, end: false },
     ],
   },
   {

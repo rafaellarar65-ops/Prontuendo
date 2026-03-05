@@ -32,7 +32,7 @@ export const ProtocolsPage = () => {
             type="button"
             className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
             disabled={isCreating || !name}
-            onClick={() => createProtocol({ name, status: 'Ativo' }, { onSuccess: () => setName('') })}
+            onClick={() => createProtocol({ name, status: 'ATIVO' }, { onSuccess: () => setName('') })}
           >
             Criar
           </button>

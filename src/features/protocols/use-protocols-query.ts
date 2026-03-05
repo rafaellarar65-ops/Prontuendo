@@ -5,5 +5,12 @@ import { queryKeys } from '@/lib/query/query-keys';
 export const useProtocolsQuery = () =>
   useQuery({
     queryKey: queryKeys.protocols,
-    queryFn: protocolsApi.list,
+    queryFn: () => protocolsApi.list(),
+  });
+
+export const useProtocolsByConditionQuery = (condition?: string) =>
+  useQuery({
+    queryKey: queryKeys.protocolsByCondition(condition ?? ''),
+    queryFn: () => protocolsApi.list(condition),
+    enabled: Boolean(condition),
   });

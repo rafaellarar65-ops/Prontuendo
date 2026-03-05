@@ -15,6 +15,7 @@ DO $$ BEGIN
   CREATE TYPE service_contract_type AS ENUM ('PRIVATE','INSURANCE','SOCIAL');
   CREATE TYPE service_type AS ENUM ('FIRST_CONSULTATION','FOLLOW_UP','PROCEDURE','EXAM','OTHER');
   CREATE TYPE audit_action AS ENUM ('INSERT','UPDATE','DELETE','ACCESS','EXPORT');
+  CREATE TYPE clinical_protocol_status AS ENUM ('ATIVO','INATIVO','RASCUNHO');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Core
@@ -58,7 +59,7 @@ CREATE TABLE IF NOT EXISTS "PrescriptionItem" (id uuid PRIMARY KEY DEFAULT gen_r
 
 CREATE TABLE IF NOT EXISTS "Disease" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,code text NOT NULL,name text NOT NULL,synonyms jsonb,metadata jsonb,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now(),"deletedAt" timestamptz,"createdBy" uuid,"updatedBy" uuid);
 CREATE TABLE IF NOT EXISTS "Medication" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,name text NOT NULL,"activeIngredient" text,"atcCode" text,metadata jsonb,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now(),"deletedAt" timestamptz,"createdBy" uuid,"updatedBy" uuid);
-CREATE TABLE IF NOT EXISTS "ClinicalProtocol" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,"parentProtocolId" uuid,name text NOT NULL,"diseaseId" uuid,"protocolType" text NOT NULL,version int DEFAULT 1,"consensusSource" text,"recommendationJson" jsonb NOT NULL,active boolean DEFAULT true,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now(),"deletedAt" timestamptz,"createdBy" uuid,"updatedBy" uuid);
+CREATE TABLE IF NOT EXISTS "ClinicalProtocol" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,name text NOT NULL,description text NOT NULL,"targetCondition" text NOT NULL,version int NOT NULL DEFAULT 1,status clinical_protocol_status NOT NULL,steps jsonb NOT NULL,medications jsonb NOT NULL,"inclusionCriteria" jsonb NOT NULL,references text,"createdBy" uuid NOT NULL,"createdAt" timestamptz NOT NULL DEFAULT now(),"updatedAt" timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS "ClinicalScoreDefinition" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,name text NOT NULL,description text,"formulaJson" jsonb NOT NULL,"variablesJson" jsonb NOT NULL,category text,active boolean DEFAULT true,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now(),"deletedAt" timestamptz,"createdBy" uuid,"updatedBy" uuid);
 CREATE TABLE IF NOT EXISTS "ClinicalScoreResult" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" uuid NOT NULL,"patientId" uuid NOT NULL REFERENCES "Patient"(id) ON DELETE CASCADE,"consultationId" uuid,"definitionId" uuid NOT NULL REFERENCES "ClinicalScoreDefinition"(id),"scoreValue" numeric(10,2) NOT NULL,classification text,"variablesInput" jsonb NOT NULL,"calculatedAt" timestamptz DEFAULT now(),"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now(),"deletedAt" timestamptz,"createdBy" uuid,"updatedBy" uuid);
 
