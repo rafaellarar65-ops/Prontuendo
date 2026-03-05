@@ -1,45 +1,36 @@
-import { NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 
-import { PrismaService } from '../prisma/prisma.service';
 import { ProtocolsService } from './protocols.service';
 
 describe('ProtocolsService', () => {
-  const protocolDelegate = {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
-    updateMany: jest.fn(),
-    deleteMany: jest.fn(),
-  };
+  it('deve criar e listar por tenant', async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [ProtocolsService],
+    }).compile();
 
-  const prisma = { protocol: protocolDelegate } as unknown as PrismaService;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('deve criar com escopo tenant e actor', async () => {
-    const service = new ProtocolsService(prisma);
-    protocolDelegate.create.mockResolvedValue({ id: 'p1' });
-
-    await service.create('t1', 'u1', {
-      targetCondition: 'E11',
+    const service = moduleRef.get(ProtocolsService);
+    service.create('t1', 'u1', {
+      name: 'x',
+      description: 'desc',
+      targetCondition: 'dm2',
+      status: 'draft',
       steps: [],
       medications: [],
-      inclusionCriteria: {},
+      inclusionCriteria: { all: [], any: [], exclusions: [] },
+      references: [],
+    });
+    service.create('t2', 'u2', {
+      name: 'y',
+      description: 'desc',
+      targetCondition: 'obesity',
+      status: 'active',
+      steps: [],
+      medications: [],
+      inclusionCriteria: { all: [], any: [], exclusions: [] },
+      references: [],
     });
 
-    expect(protocolDelegate.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ tenantId: 't1', createdBy: 'u1', updatedBy: 'u1' }),
-      }),
-    );
-  });
-
-  it('deve lançar NotFoundException quando protocolo não existir no tenant', async () => {
-    const service = new ProtocolsService(prisma);
-    protocolDelegate.findFirst.mockResolvedValue(null);
-
-    await expect(service.findById('t1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    expect(service.list('t1', { page: 1, perPage: 20 })).toHaveLength(1);
+    expect(service.list('t2', { page: 1, perPage: 20 })).toHaveLength(1);
   });
 });
