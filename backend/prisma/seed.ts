@@ -65,7 +65,7 @@ const globalDrugTemplates: DrugTemplateSeed[] = [
 const defaultDocumentTemplates: DocumentTemplateSeed[] = [
   {
     id: 'doc-template-receituario-simples',
-    category: 'PRESCRICAO',
+    category: 'RECEITUARIO',
     name: 'Receituário simples',
     description: 'Modelo padrão para prescrição médica em texto livre.',
     isDefault: true,
@@ -135,7 +135,7 @@ const defaultDocumentTemplates: DocumentTemplateSeed[] = [
   },
   {
     id: 'doc-template-solicitacao-exames',
-    category: 'EXAMES',
+    category: 'SOLICITACAO_EXAME',
     name: 'Solicitação de exames',
     description: 'Modelo de pedido laboratorial com espaço para lista de exames.',
     isDefault: true,
