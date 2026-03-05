@@ -1,36 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsDateString,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
 
-export class PrescriptionItemDto {
+class PrescriptionItemDto {
   @ApiProperty()
   @IsString()
-  medicationId!: string;
-
-  @ApiProperty()
-  @IsString()
-  name!: string;
+  medication!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   dosage?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  frequency?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  duration?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -48,24 +28,29 @@ export class CreatePrescriptionDto {
   @IsString()
   consultationId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
   @IsDateString()
   issuedAt?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
   @IsDateString()
   validUntil?: string;
+
+  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'], default: 'ATIVA' })
+  @IsOptional()
+  @IsIn(['ATIVA', 'CANCELADA'])
+  status?: 'ATIVA' | 'CANCELADA';
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiProperty({ type: [PrescriptionItemDto] })
+  @ApiPropertyOptional({ type: [PrescriptionItemDto], default: [] })
+  @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
   @Type(() => PrescriptionItemDto)
-  items!: PrescriptionItemDto[];
+  items?: PrescriptionItemDto[];
 }

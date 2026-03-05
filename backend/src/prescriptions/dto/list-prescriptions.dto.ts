@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
@@ -9,8 +9,13 @@ export class ListPrescriptionsDto extends PaginationDto {
   @IsString()
   patientId?: string;
 
-  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'] })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  consultationId?: string;
+
+  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'] })
+  @IsOptional()
+  @IsIn(['ATIVA', 'CANCELADA'])
   status?: 'ATIVA' | 'CANCELADA';
 }
