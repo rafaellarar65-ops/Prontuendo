@@ -1,21 +1,46 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 
-class PrescriptionItemDto {
+export class CreatePrescriptionItemDto {
   @ApiProperty()
   @IsString()
-  medication!: string;
+  medicationName!: string;
+
+  @ApiProperty()
+  @IsString()
+  dosage!: string;
+
+  @ApiProperty()
+  @IsString()
+  frequency!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  dosage?: string;
+  route?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  duration?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   instructions?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  unit?: string;
 }
 
 export class CreatePrescriptionDto {
@@ -28,29 +53,19 @@ export class CreatePrescriptionDto {
   @IsString()
   consultationId?: string;
 
-  @ApiPropertyOptional({ type: String, format: 'date-time' })
-  @IsOptional()
-  @IsDateString()
-  issuedAt?: string;
-
-  @ApiPropertyOptional({ type: String, format: 'date-time' })
-  @IsOptional()
-  @IsDateString()
-  validUntil?: string;
-
-  @ApiPropertyOptional({ enum: ['ATIVA', 'CANCELADA'], default: 'ATIVA' })
-  @IsOptional()
-  @IsIn(['ATIVA', 'CANCELADA'])
-  status?: 'ATIVA' | 'CANCELADA';
+  @ApiProperty({ type: [CreatePrescriptionItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePrescriptionItemDto)
+  items!: CreatePrescriptionItemDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ type: [PrescriptionItemDto], default: [] })
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
-  @IsArray()
-  @Type(() => PrescriptionItemDto)
-  items?: PrescriptionItemDto[];
+  @IsString()
+  validUntil?: string;
 }
