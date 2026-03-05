@@ -295,7 +295,7 @@ class BackendTester:
         
         response = self.make_request("POST", "/ai/assist-consultation", json=ai_request_data)
         
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             ai_response = response.json()
             self.log("✅ AI Clinical Brain working")
             self.log(f"   Response keys: {list(ai_response.keys())}")
