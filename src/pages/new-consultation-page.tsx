@@ -349,11 +349,18 @@ const ClinicalBrainPanel = ({
       <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm space-y-3">
         <h2 className="font-semibold text-slate-800">Emissão de Documentos</h2>
         <div className="grid grid-cols-2 gap-2">
-          <button className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition">
+          <button
+            onClick={() => patient && navigate(`/prescricoes?patientId=${patient.id}&openNew=true`)}
+            disabled={!patient}
+            className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition disabled:opacity-50"
+          >
              <Pill size={20} className="text-indigo-600" />
              <span className="text-xs font-medium text-slate-700">Nova Receita</span>
           </button>
-          <button className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition">
+          <button
+            onClick={() => navigate('/templates')}
+            className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition"
+          >
              <FileText size={20} className="text-indigo-600" />
              <span className="text-xs font-medium text-slate-700">Novo Laudo</span>
           </button>
@@ -653,7 +660,10 @@ export const NewConsultationPage = () => {
 
                  <TabsContent value="prescricao">
                     <div className="flex items-center justify-end mb-4">
-                       <button className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">
+                       <button
+                         onClick={() => patient && navigate(`/prescricoes?patientId=${patient.id}&openNew=true`)}
+                         className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+                       >
                           <Pill size={14} /> Nova Receita (Builder)
                        </button>
                     </div>
