@@ -1,5 +1,27 @@
-import { PartialType } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
-import { CreateProtocolDto } from './create-protocol.dto';
+import { ProtocolStatus } from './protocol-status.enum';
 
-export class UpdateProtocolDto extends PartialType(CreateProtocolDto) {}
+export class UpdateProtocolDto {
+  @ApiPropertyOptional({ description: 'Nome do protocolo', maxLength: 140 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(140)
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Condição/diagnóstico relacionado ao protocolo' })
+  @IsOptional()
+  @IsString()
+  condition?: string;
+
+  @ApiPropertyOptional({ description: 'Conteúdo estruturado do protocolo' })
+  @IsOptional()
+  @IsObject()
+  content?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ enum: ProtocolStatus })
+  @IsOptional()
+  @IsEnum(ProtocolStatus)
+  status?: ProtocolStatus;
+}
