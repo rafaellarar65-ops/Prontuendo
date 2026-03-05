@@ -65,7 +65,7 @@ export class LabResultsService {
       throw new Error('AI Service not configured');
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     const imagePart = {
       inlineData: {
