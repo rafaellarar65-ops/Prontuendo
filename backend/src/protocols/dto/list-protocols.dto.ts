@@ -1,16 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { ProtocolStatus } from './protocol-status.enum';
 
 export class ListProtocolsDto extends PaginationDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Filtro por condição/diagnóstico' })
   @IsOptional()
   @IsString()
   condition?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: ProtocolStatus, description: 'Filtro por status do protocolo' })
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsEnum(ProtocolStatus)
+  status?: ProtocolStatus;
 }

@@ -4,11 +4,16 @@ import { Injectable } from '@nestjs/common';
 
 import { CreateProtocolDto } from './dto/create-protocol.dto';
 import { ListProtocolsDto } from './dto/list-protocols.dto';
+import { ProtocolStatus } from './dto/protocol-status.enum';
 import { UpdateProtocolDto } from './dto/update-protocol.dto';
 
-type Item = CreateProtocolDto & {
+type Item = {
   id: string;
   tenantId: string;
+  name: string;
+  condition: string;
+  content: Record<string, unknown>;
+  status: ProtocolStatus;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -24,7 +29,7 @@ export class ProtocolsService {
         return false;
       }
 
-      if (query.condition && item.targetCondition !== query.condition) {
+      if (query.condition && item.condition !== query.condition) {
         return false;
       }
 
@@ -37,38 +42,74 @@ export class ProtocolsService {
 
     const start = (query.page - 1) * query.perPage;
     const end = start + query.perPage;
-    return filtered.slice(start, end);
+
+    return {
+      data: filtered.slice(start, end),
+      page: query.page,
+      perPage: query.perPage,
+      total: filtered.length,
+    };
+  }
+
+  findById(tenantId: string, id: string) {
+    return this.store.find((item) => item.tenantId === tenantId && item.id === id) ?? null;
   }
 
   create(tenantId: string, actorId: string, dto: CreateProtocolDto) {
     const now = new Date().toISOString();
-    const item: Item = { id: randomUUID(), tenantId, ...dto, createdBy: actorId, createdAt: now, updatedAt: now };
+    const item: Item = {
+      id: randomUUID(),
+      tenantId,
+      name: dto.name,
+      condition: dto.condition,
+      content: dto.content ?? {},
+      status: dto.status ?? ProtocolStatus.ACTIVE,
+      createdBy: actorId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
     this.store.push(item);
     return item;
   }
 
   update(tenantId: string, id: string, dto: UpdateProtocolDto) {
-    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
+    const item = this.findById(tenantId, id);
     if (!item) {
       return null;
     }
 
-    Object.assign(item, dto);
+    if (dto.name !== undefined) {
+      item.name = dto.name;
+    }
+
+    if (dto.condition !== undefined) {
+      item.condition = dto.condition;
+    }
+
+    if (dto.content !== undefined) {
+      item.content = { ...item.content, ...dto.content };
+    }
+
+    if (dto.status !== undefined) {
+      item.status = dto.status;
+    }
+
     item.updatedAt = new Date().toISOString();
     return item;
   }
 
-  remove(tenantId: string, id: string) {
-    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
-    if (index < 0) {
-      return { deleted: false };
-    }
-
-    this.store.splice(index, 1);
-    return { deleted: true };
+  activate(tenantId: string, id: string) {
+    return this.update(tenantId, id, { status: ProtocolStatus.ACTIVE });
   }
 
-  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
+  deactivate(tenantId: string, id: string) {
+    return this.update(tenantId, id, { status: ProtocolStatus.INACTIVE });
+  }
+
+  suggestions(tenantId: string, diagnosis: string) {
+    return this.store
+      .filter((item) => item.tenantId === tenantId && item.status === ProtocolStatus.ACTIVE && item.condition === diagnosis)
+      .map(({ id, name, condition, status }) => ({ id, name, condition, status }));
   }
 }
