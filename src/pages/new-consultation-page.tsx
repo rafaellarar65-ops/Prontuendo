@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Check, ChevronDown, History, Loader2, Save, Search, X } from 'lucide-react';
+import { Bot, Check, ChevronDown, History, Loader2, Save, Search, X, Mic, FileText, Pill, Stethoscope, Activity, FileSpreadsheet, BarChart2, ClipboardList } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { consultationApi, ConsultationDraft, ConsultationVersionDetail } from '@/lib/api/consultation-api';
 import { patientApi } from '@/lib/api/patient-api';
 import { aiApi, type AssistConsultationResponse } from '@/lib/api/ai-api';
 import { useProtocolsByConditionQuery } from '@/features/protocols/use-protocols-query';
 import { useConsultationVersionQuery, useConsultationVersionsQuery } from '@/features/consultations/use-consultation-versions-query';
+import { PatientExamsTab } from '@/components/domain/patient-exams-tab';
+import { PatientBioimpedanceTab } from '@/components/domain/patient-bioimpedance-tab';
+import { PatientScoresTab } from '@/components/domain/patient-scores-tab';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Patient } from '@/types/api';
-
 
 const CONDITIONS = {
   DM2: 'DM2',
@@ -216,8 +219,8 @@ const SoapSection = ({
   </div>
 );
 
-// ── AI Panel ─────────────────────────────────────────────────────
-const AiPanel = ({
+// ── Clinical Brain Panel ─────────────────────────────────────────
+const ClinicalBrainPanel = ({
   patient,
   draft,
 }: {
@@ -227,6 +230,7 @@ const AiPanel = ({
   const [result, setResult] = useState<AssistConsultationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isListening, setIsListening] = useState(false);
 
   const run = async () => {
     if (!patient) return;
@@ -249,70 +253,119 @@ const AiPanel = ({
   };
 
   return (
-    <aside className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Bot size={18} className="text-indigo-600" />
-        <h2 className="font-semibold text-slate-800">Assistente IA</h2>
-      </div>
-      <p className="text-xs text-slate-500">
-        Análise de hipóteses diagnósticas e plano de investigação baseados no conteúdo da consulta.
-      </p>
-      <button
-        type="button"
-        onClick={run}
-        disabled={loading || !patient}
-        className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
-        {loading ? 'Analisando...' : 'Analisar com IA'}
-      </button>
-      {!patient && <p className="text-xs text-amber-600">Selecione um paciente para usar o assistente.</p>}
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
-      {result && !loading && (
-        <div className="space-y-3 text-xs">
-          <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700">
-            <p className="font-semibold">
-              IA tem acesso a: {result.dataAvailability.glucoseCount} glicemias, {result.dataAvailability.labCount} exames, {result.dataAvailability.bioCount} bioimpedâncias, {result.dataAvailability.consultationCount} consultas anteriores
-            </p>
-            <ul className="mt-1 space-y-0.5 text-[11px]">
-              {result.dataAvailability.glucoseCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
-              {result.dataAvailability.labCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
-              {result.dataAvailability.bioCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
-              {result.dataAvailability.consultationCount === 0 && <li>Sem histórico disponível para este domínio.</li>}
-            </ul>
-          </div>
-          {result.clinicalSummary && (
-            <div>
-              <p className="font-semibold text-slate-700 mb-1">Resumo clínico</p>
-              <p className="text-slate-600 leading-relaxed">{result.clinicalSummary}</p>
-            </div>
-          )}
-          {(result.differentialDiagnoses?.length ?? 0) > 0 && (
-            <div>
-              <p className="font-semibold text-slate-700 mb-1">Hipóteses diagnósticas</p>
-              <ul className="space-y-1">
-                {(result.differentialDiagnoses ?? []).slice(0, 3).map((d, i: number) => (
-                  <li key={i} className="rounded-lg bg-indigo-50 px-2 py-1.5">
-                    <p className="font-medium text-indigo-800">{d.hypothesis}</p>
-                    <p className="text-indigo-600">{d.clinicalRationale}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {(result.redFlags?.length ?? 0) > 0 && (
-            <div>
-              <p className="font-semibold text-rose-600 mb-1">Alertas</p>
-              <ul className="space-y-0.5">
-                {(result.redFlags ?? []).map((f: string, i: number) => (
-                  <li key={i} className="text-rose-600">• {f}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <p className="text-slate-400 italic leading-relaxed">{result.safety?.disclaimer}</p>
+    <aside className="space-y-4">
+      {/* Cérebro Clínico - Passive Listening */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-indigo-600" />
+          <h2 className="font-semibold text-slate-800">Cérebro Clínico</h2>
         </div>
-      )}
+        
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Escuta Passiva</h3>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <button
+              onClick={() => setIsListening(!isListening)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isListening ? 'bg-rose-100 text-rose-600 animate-pulse' : 'bg-white text-slate-400 border border-slate-200'}`}
+            >
+              <Mic size={18} />
+            </button>
+            <p className="text-xs text-slate-500 italic">
+              {isListening ? 'Ouvindo consulta...' : 'Nenhum áudio captado.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+           <div className="flex items-center justify-between">
+             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Plano Sugerido</h3>
+             <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">{(result?.differentialDiagnoses?.length ?? 0) + (result?.redFlags?.length ?? 0)} itens</span>
+           </div>
+           
+           {!result && !loading && (
+             <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+               <p className="text-xs text-slate-400">Nenhuma sugestão pendente.</p>
+               <button
+                type="button"
+                onClick={run}
+                disabled={!patient}
+                className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+               >
+                 Analisar dados inseridos
+               </button>
+             </div>
+           )}
+
+           {loading && (
+             <div className="flex items-center justify-center py-4 text-slate-400 gap-2 text-xs">
+               <Loader2 size={14} className="animate-spin" /> Analisando contexto...
+             </div>
+           )}
+
+           {error && <p className="text-xs text-rose-600">{error}</p>}
+
+           {result && !loading && (
+            <div className="space-y-3 text-xs">
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700">
+                <p className="font-semibold">Contexto analisado</p>
+                <p className="mt-1 opacity-80">
+                  {result.dataAvailability.glucoseCount} glicemias, {result.dataAvailability.labCount} exames, {result.dataAvailability.bioCount} bioimpedâncias
+                </p>
+              </div>
+              
+              {(result.redFlags?.length ?? 0) > 0 && (
+                <div>
+                  <p className="font-semibold text-rose-600 mb-1">Alertas</p>
+                  <ul className="space-y-1">
+                    {(result.redFlags ?? []).map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-1.5 text-rose-700">
+                        <span className="mt-0.5 block h-1.5 w-1.5 rounded-full bg-rose-500 flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(result.differentialDiagnoses?.length ?? 0) > 0 && (
+                <div>
+                  <p className="font-semibold text-slate-700 mb-1">Hipóteses</p>
+                  <ul className="space-y-2">
+                    {(result.differentialDiagnoses ?? []).slice(0, 3).map((d, i: number) => (
+                      <li key={i} className="rounded-lg bg-slate-50 p-2">
+                        <p className="font-medium text-slate-800">{d.hypothesis}</p>
+                        <p className="mt-1 text-slate-500 leading-relaxed">{d.clinicalRationale}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+           )}
+        </div>
+      </div>
+
+      {/* Document Emission */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm space-y-3">
+        <h2 className="font-semibold text-slate-800">Emissão de Documentos</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => patient && navigate(`/prescricoes?patientId=${patient.id}&openNew=true`)}
+            disabled={!patient}
+            className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition disabled:opacity-50"
+          >
+             <Pill size={20} className="text-indigo-600" />
+             <span className="text-xs font-medium text-slate-700">Nova Receita</span>
+          </button>
+          <button
+            onClick={() => navigate('/templates')}
+            className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-indigo-50 hover:border-indigo-100 transition"
+          >
+             <FileText size={20} className="text-indigo-600" />
+             <span className="text-xs font-medium text-slate-700">Novo Laudo</span>
+          </button>
+        </div>
+      </div>
     </aside>
   );
 };
@@ -334,6 +387,8 @@ export const NewConsultationPage = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
   const [debouncedAssessment, setDebouncedAssessment] = useState('');
+  const [activeTab, setActiveTab] = useState('anamnese');
+  
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -461,13 +516,11 @@ export const NewConsultationPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Nova Consulta</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Prontuário SOAP com salvamento automático</p>
-          {latestVersion && (
-            <p className="text-xs text-slate-400 mt-1">
-              v{latestVersion.version} — última alteração {formatRelativeTime(latestVersion.createdAt)}
-            </p>
+          <h1 className="text-2xl font-bold text-slate-800">Consulta Ativa</h1>
+          {patient && (
+             <p className="text-sm text-slate-500 mt-0.5 font-medium">Atendendo: {patient.fullName}</p>
           )}
+          {!patient && <p className="text-sm text-slate-500 mt-0.5">Selecione um paciente para iniciar</p>}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -520,75 +573,116 @@ export const NewConsultationPage = () => {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-5">
-          {/* Patient */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-            <h2 className="text-sm font-semibold text-slate-700">Paciente</h2>
-            <PatientSelector
-              selected={patient}
-              onSelect={(p) => {
-                setPatient(p);
-                setConsultationId(null);
-                setSelectedVersionNumber(null);
-                setHistoryOpen(false);
-              }}
-            />
-            {createMutation.isPending && (
-              <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Loader2 size={11} className="animate-spin" /> Criando consulta...
-              </p>
-            )}
-          </div>
+          {/* Patient Selector (Only if not selected) */}
+          {!patient && (
+             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+                <h2 className="text-sm font-semibold text-slate-700">Identificação</h2>
+                <PatientSelector
+                  selected={patient}
+                  onSelect={(p) => {
+                    setPatient(p);
+                    setConsultationId(null);
+                    setSelectedVersionNumber(null);
+                    setHistoryOpen(false);
+                  }}
+                />
+             </div>
+          )}
 
-          {/* SOAP Form */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
-            <h2 className="text-sm font-semibold text-slate-700">Prontuário SOAP</h2>
-            <SoapSection
-              label="Subjetivo — Queixa principal e histórico"
-              field="subjetivo"
-              value={draft.subjetivo ?? ''}
-              onChange={handleChange}
-              placeholder="Paciente refere... Há... meses. Nega..."
-            />
-            <SoapSection
-              label="Objetivo — Exame físico e dados mensuráveis"
-              field="objetivo"
-              value={draft.objetivo ?? ''}
-              onChange={handleChange}
-              placeholder="PA: / FC: / Peso: kg / Altura: m / IMC: / Circunferência abdominal: cm..."
-            />
-            <SoapSection
-              label="Avaliação — Hipóteses diagnósticas"
-              field="avaliacao"
-              value={draft.avaliacao ?? ''}
-              onChange={handleChange}
-              placeholder="1. Diabetes Mellitus tipo 2 — controlada / 2. Obesidade grau II..."
-            />
-            {recognizedCondition && (protocolsByCondition?.length ?? 0) > 0 && (
-              <div className="-mt-2 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs">
-                <span className="font-medium text-emerald-800">Protocolo disponível para {recognizedCondition}</span>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/protocolos?condition=${encodeURIComponent(recognizedCondition)}`)}
-                  className="rounded-md border border-emerald-200 bg-white px-2 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
-                >
-                  Visualizar/aplicar
-                </button>
-                {isFetchingProtocols && <Loader2 size={12} className="animate-spin text-emerald-600" />}
-              </div>
-            )}
-            <SoapSection
-              label="Plano — Conduta terapêutica"
-              field="plano"
-              value={draft.plano ?? ''}
-              onChange={handleChange}
-              placeholder="1. Manter metformina 850mg 2x/dia. 2. Solicitar HbA1c, lipidograma. 3. Retorno em 90 dias..."
-              rows={6}
-            />
-          </div>
+          {/* Main Tabs */}
+          {patient && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm min-h-[600px]">
+               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                 <TabsList className="mb-6 w-full justify-start gap-2 bg-slate-50 p-1.5">
+                    <TabsTrigger value="anamnese"><ClipboardList size={14} className="mr-2"/> ANAMNESE</TabsTrigger>
+                    <TabsTrigger value="exame-fisico"><Stethoscope size={14} className="mr-2"/> EXAME FÍSICO</TabsTrigger>
+                    <TabsTrigger value="exames"><FileSpreadsheet size={14} className="mr-2"/> EXAMES</TabsTrigger>
+                    <TabsTrigger value="bioimpedancia"><Activity size={14} className="mr-2"/> BIOIMPEDÂNCIA</TabsTrigger>
+                    <TabsTrigger value="escores"><BarChart2 size={14} className="mr-2"/> ESCORES</TabsTrigger>
+                    <TabsTrigger value="prescricao"><Pill size={14} className="mr-2"/> PRESCRIÇÃO</TabsTrigger>
+                 </TabsList>
+
+                 <TabsContent value="anamnese" className="space-y-6">
+                    <SoapSection
+                      label="Queixa principal e histórico (Subjetivo)"
+                      field="subjetivo"
+                      value={draft.subjetivo ?? ''}
+                      onChange={handleChange}
+                      placeholder="Paciente refere... Há... meses. Nega..."
+                      rows={12}
+                    />
+                    <div className="border-t border-slate-100 pt-6">
+                      <SoapSection
+                        label="Hipóteses diagnósticas (Avaliação)"
+                        field="avaliacao"
+                        value={draft.avaliacao ?? ''}
+                        onChange={handleChange}
+                        placeholder="1. Diabetes Mellitus tipo 2 — controlada / 2. Obesidade grau II..."
+                      />
+                      {recognizedCondition && (protocolsByCondition?.length ?? 0) > 0 && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs">
+                          <span className="font-medium text-emerald-800">Protocolo disponível para {recognizedCondition}</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/protocolos?condition=${encodeURIComponent(recognizedCondition)}`)}
+                            className="rounded-md border border-emerald-200 bg-white px-2 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Visualizar/aplicar
+                          </button>
+                          {isFetchingProtocols && <Loader2 size={12} className="animate-spin text-emerald-600" />}
+                        </div>
+                      )}
+                    </div>
+                 </TabsContent>
+
+                 <TabsContent value="exame-fisico">
+                    <SoapSection
+                      label="Exame físico e dados mensuráveis (Objetivo)"
+                      field="objetivo"
+                      value={draft.objetivo ?? ''}
+                      onChange={handleChange}
+                      placeholder="PA: / FC: / Peso: kg / Altura: m / IMC: / Circunferência abdominal: cm..."
+                      rows={16}
+                    />
+                 </TabsContent>
+
+                 <TabsContent value="exames">
+                    <PatientExamsTab patientId={patient.id} />
+                 </TabsContent>
+
+                 <TabsContent value="bioimpedancia">
+                    <PatientBioimpedanceTab patientId={patient.id} patient={patient} />
+                 </TabsContent>
+
+                 <TabsContent value="escores">
+                    <PatientScoresTab patientId={patient.id} patient={patient} />
+                 </TabsContent>
+
+                 <TabsContent value="prescricao">
+                    <div className="flex items-center justify-end mb-4">
+                       <button
+                         onClick={() => patient && navigate(`/prescricoes?patientId=${patient.id}&openNew=true`)}
+                         className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+                       >
+                          <Pill size={14} /> Nova Receita (Builder)
+                       </button>
+                    </div>
+                    <SoapSection
+                      label="Conduta terapêutica (Plano)"
+                      field="plano"
+                      value={draft.plano ?? ''}
+                      onChange={handleChange}
+                      placeholder="1. Manter metformina 850mg 2x/dia. 2. Solicitar HbA1c, lipidograma. 3. Retorno em 90 dias..."
+                      rows={16}
+                    />
+                 </TabsContent>
+               </Tabs>
+            </div>
+          )}
         </div>
 
-        {/* AI Panel */}
-        <AiPanel patient={patient} draft={draft} />
+        {/* Right Panel */}
+        <ClinicalBrainPanel patient={patient} draft={draft} />
       </div>
 
       <div

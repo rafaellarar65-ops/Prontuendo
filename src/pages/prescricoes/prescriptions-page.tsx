@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Pill, Plus, Search, ShieldAlert, Trash2, XCircle } from 'lucide-react';
 import { ClinicalPageShell } from '@/components/app/clinical-page-shell';
 import { usePatientsQuery } from '@/features/patients/use-patients-query';
@@ -56,6 +57,7 @@ const statusStyles: Record<PrescriptionStatus, string> = {
 };
 
 export const PrescriptionsPage = () => {
+  const [searchParams] = useSearchParams();
   const { data: patients = [] } = usePatientsQuery();
   const { user } = useAuthStore();
 
@@ -63,6 +65,22 @@ export const PrescriptionsPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    const patientId = searchParams.get('patientId');
+    const openNew = searchParams.get('openNew');
+
+    if (patientId && patients.length > 0) {
+      const patient = patients.find((p) => p.id === patientId);
+      if (patient) {
+        setSelectedPatient(patient);
+        setQuery(patient.fullName);
+        if (openNew === 'true') {
+          setIsModalOpen(true);
+        }
+      }
+    }
+  }, [searchParams, patients]);
 
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [items, setItems] = useState<PrescriptionItem[]>([createEmptyItem()]);

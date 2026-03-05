@@ -38,7 +38,7 @@ const PatientItem = ({ patient }: { patient: Patient }) => {
   return (
     <Link
       to={`/pacientes/${patient.id}`}
-      className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
+      className="group relative z-10 flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
     >
       <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 font-bold text-white">
         {initials}
