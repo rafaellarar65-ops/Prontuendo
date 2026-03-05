@@ -50,12 +50,22 @@ Migrar o sistema Prontuendo para PostgreSQL, implementar multi-tenancy e adicion
 
 ## Credenciais de Teste
 - Email: `rafaellarar65@gmail.com`
-- Senha: `crucru22`
+- Senha: `12345678`
 - Tenant: `clitenant0000000000000001`
 
 ---
 
 ## Changelog
+
+### 2026-03-05 — Integração de PRs do GitHub + Correções
+- Puxado código atualizado do repositório GitHub com 187+ commits de PRs do Codex
+- Resolvidos conflitos de merge no `schema.prisma` e `agenda.service.ts`
+- Corrigido import `path` em `documents.module.ts` (default → namespace import)
+- Corrigido `prescriptions.service.ts`: `issuedAt` → `createdAt` (campo não existia no schema)
+- Corrigido erro de sintaxe em `patient-profile-page.tsx` (parêntese faltando no setMetadata)
+- Atualizado seed para usar categorias corretas de DocumentTemplate
+- Senha do seed alterada para `12345678` (consistência com handoff)
+- **Testado:** 15/15 testes backend passando, frontend 100% funcional
 
 ### 2026-03-03 — Módulo de Agenda com Persistência PostgreSQL
 - Adicionado modelo `Appointment` no Prisma schema com enums `AppointmentType` e `AppointmentStatus`
@@ -73,9 +83,9 @@ Migrar o sistema Prontuendo para PostgreSQL, implementar multi-tenancy e adicion
 - **Bioimpedância — Modal de criação:** Adicionar modal para criar registros na aba de bioimpedância do perfil do paciente
 
 ### 🟠 P1 — Alta Prioridade
-- **Prescrições — Persistência:** Migrar `PrescriptionsService` de in-memory para Prisma
+- **Prescrições — Persistência:** ✅ Já migrado para Prisma
 - **Protocolos — Persistência:** Migrar `ProtocolsService` de in-memory para Prisma
-- **Escores Clínicos — Persistência + lógica:** Migrar `ScoresService`, implementar cálculos reais
+- **Escores Clínicos — Persistência + lógica:** ✅ Já migrado para Prisma
 - **Templates — Variáveis dinâmicas + PDF:** Implementar `{patient_name}` e exportação PDF
 - **Perfil do Paciente — Aba Documentos real:** Conectar a um serviço real de documentos
 - **Consulta — Histórico de versões:** Exibir versões salvas da tabela `ConsultationVersion`
@@ -108,3 +118,14 @@ Migrar o sistema Prontuendo para PostgreSQL, implementar multi-tenancy e adicion
 
 ## Bugs Conhecidos
 - **Consulta autosave:** Mismatch de campos entre frontend (`{subjetivo,objetivo,avaliacao,plano}`) e backend (`{anamnese,exameFisico,diagnostico,prescricao}`) — corrigir em `/app/src/lib/api/consultation-api.ts`
+
+---
+
+## Arquivos de Referência Importantes
+- `/app/backend/prisma/schema.prisma` - Schema do banco de dados
+- `/app/backend/src/agenda/` - Módulo de agendamentos
+- `/app/backend/src/prescriptions/` - Módulo de prescrições
+- `/app/backend/src/scores/` - Módulo de escores clínicos
+- `/app/src/pages/patient-profile-page.tsx` - Perfil do paciente
+- `/app/src/pages/escores/scores-page.tsx` - Página de escores
+- `/app/src/pages/prescricoes/prescriptions-page.tsx` - Página de prescrições
