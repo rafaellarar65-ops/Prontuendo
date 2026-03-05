@@ -6,8 +6,12 @@ import type {
   BioimpedanceFormValues,
   BioimpedancePoint,
   BioimpedanceUpload,
+  BioimpedanceMetadata,
+  BioimpedanceSegmentedFields,
   CreateBioimpedancePayload,
 } from '@/types/bioimpedance';
+
+export type CreateBioimpedanceDto = CreateBioimpedancePayload;
 
 const parseNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -41,25 +45,41 @@ const resolveExamMetric = (exam: BioimpedanceExam, primaryField: keyof Bioimpeda
   return 0;
 };
 
+const mapExtractedClinicalFields = (extracted: BioimpedanceAiExtractionResponse): Partial<BioimpedanceFormValues> => {
+  const bodyFatPct = extracted.bodyFatPct ?? extracted.fatMassPercent;
+  const muscleMassKg = extracted.muscleMassKg ?? extracted.muscleMass;
+
+  return {
+    ...(extracted.weightKg !== undefined ? { weightKg: extracted.weightKg } : {}),
+    ...(bodyFatPct !== undefined ? { bodyFatPct } : {}),
+    ...(muscleMassKg !== undefined ? { muscleMassKg } : {}),
+    ...(extracted.hydrationPct !== undefined ? { hydrationPct: extracted.hydrationPct } : {}),
+    ...(extracted.bmi !== undefined ? { bmi: extracted.bmi } : {}),
+    ...(extracted.visceralFatLevel !== undefined ? { visceralFatLevel: extracted.visceralFatLevel } : {}),
+    ...(extracted.basalMetabolicRateKcal !== undefined
+      ? { basalMetabolicRateKcal: extracted.basalMetabolicRateKcal }
+      : {}),
+    ...(extracted.waistHipRatio !== undefined ? { waistHipRatio: extracted.waistHipRatio } : {}),
+    ...(extracted.phaseAngle !== undefined ? { phaseAngle: extracted.phaseAngle } : {}),
+    ...(extracted.totalBodyWaterPct !== undefined ? { totalBodyWaterPct: extracted.totalBodyWaterPct } : {}),
+    ...(extracted.fatMassKg !== undefined ? { fatMassKg: extracted.fatMassKg } : {}),
+    ...(extracted.leanMassKg !== undefined ? { leanMassKg: extracted.leanMassKg } : {}),
+  };
+};
+
+const buildMetadata = (form: BioimpedanceFormValues): BioimpedanceMetadata => ({
+  source: form.source,
+  ...(form.segmentedFields ? { segmentedFields: form.segmentedFields as BioimpedanceSegmentedFields } : {}),
+  ...(form.originalFileUrl ? { originalFileUrl: form.originalFileUrl } : {}),
+  ...(form.originalFileName ? { originalFileName: form.originalFileName } : {}),
+});
+
 export const mapBioimpedanceAiToFormValues = (
   extracted: BioimpedanceAiExtractionResponse,
 ): BioimpedanceFormValues => ({
   measuredAt: extracted.measuredAt ?? new Date().toISOString(),
   source: 'ia',
-  ...(extracted.weightKg !== undefined ? { weightKg: extracted.weightKg } : {}),
-  ...(extracted.bodyFatPct !== undefined ? { bodyFatPct: extracted.bodyFatPct } : {}),
-  ...(extracted.muscleMassKg !== undefined ? { muscleMassKg: extracted.muscleMassKg } : {}),
-  ...(extracted.hydrationPct !== undefined ? { hydrationPct: extracted.hydrationPct } : {}),
-  ...(extracted.bmi !== undefined ? { bmi: extracted.bmi } : {}),
-  ...(extracted.visceralFatLevel !== undefined ? { visceralFatLevel: extracted.visceralFatLevel } : {}),
-  ...(extracted.basalMetabolicRateKcal !== undefined
-    ? { basalMetabolicRateKcal: extracted.basalMetabolicRateKcal }
-    : {}),
-  ...(extracted.waistHipRatio !== undefined ? { waistHipRatio: extracted.waistHipRatio } : {}),
-  ...(extracted.phaseAngle !== undefined ? { phaseAngle: extracted.phaseAngle } : {}),
-  ...(extracted.totalBodyWaterPct !== undefined ? { totalBodyWaterPct: extracted.totalBodyWaterPct } : {}),
-  ...(extracted.fatMassKg !== undefined ? { fatMassKg: extracted.fatMassKg } : {}),
-  ...(extracted.leanMassKg !== undefined ? { leanMassKg: extracted.leanMassKg } : {}),
+  ...mapExtractedClinicalFields(extracted),
   ...(extracted.segmentedFields ? { segmentedFields: extracted.segmentedFields } : {}),
   ...(extracted.originalFileUrl ? { originalFileUrl: extracted.originalFileUrl } : {}),
   ...(extracted.originalFileName ? { originalFileName: extracted.originalFileName } : {}),
@@ -68,7 +88,7 @@ export const mapBioimpedanceAiToFormValues = (
 export const mapBioimpedanceFormToCreatePayload = (
   patientId: string,
   form: BioimpedanceFormValues,
-): CreateBioimpedancePayload => ({
+): CreateBioimpedanceDto => ({
   patientId,
   measuredAt: form.measuredAt,
   weightKg: form.weightKg ?? null,
@@ -83,12 +103,7 @@ export const mapBioimpedanceFormToCreatePayload = (
   totalBodyWaterPct: form.totalBodyWaterPct ?? null,
   fatMassKg: form.fatMassKg ?? null,
   leanMassKg: form.leanMassKg ?? null,
-  metadata: {
-    source: form.source,
-    ...(form.segmentedFields ? { segmentedFields: form.segmentedFields } : {}),
-    ...(form.originalFileUrl ? { originalFileUrl: form.originalFileUrl } : {}),
-    ...(form.originalFileName ? { originalFileName: form.originalFileName } : {}),
-  },
+  metadata: buildMetadata(form),
 });
 
 export const bioimpedanceApi = {
@@ -99,8 +114,9 @@ export const bioimpedanceApi = {
     return data;
   },
 
-  async create(dto: CreateBioimpedancePayload): Promise<BioimpedanceExam> {
-    const { data } = await http.post<BioimpedanceExam>('/bioimpedance', dto);
+  async create(dto: CreateBioimpedanceDto): Promise<BioimpedanceExam> {
+    const { patientId, ...payload } = dto;
+    const { data } = await http.post<BioimpedanceExam>(`/bioimpedance/${patientId}`, payload);
     return data;
   },
 
@@ -136,11 +152,14 @@ export const bioimpedanceApi = {
     const { data } = await http.get<BioimpedanceExam[]>('/bioimpedance', {
       params: { patientId },
     });
-    return data.map((exam) => ({
-      date: exam.measuredAt ?? exam.createdAt,
-      fatMassPercent: resolveExamMetric(exam, 'bodyFatPct', 'bodyFatPercent'),
-      muscleMassKg: resolveExamMetric(exam, 'muscleMassKg', 'muscleMass'),
-    }));
+
+    return data
+      .map((exam) => ({
+        date: exam.measuredAt ?? exam.createdAt,
+        fatMassPercent: resolveExamMetric(exam, 'bodyFatPct', 'bodyFatPercent'),
+        muscleMassKg: resolveExamMetric(exam, 'muscleMassKg', 'muscleMass'),
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   },
 
   async report(): Promise<{ reportUrl: string }> {

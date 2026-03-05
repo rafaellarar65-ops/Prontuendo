@@ -68,6 +68,16 @@ export class DocumentsController {
     return this.service.findByPatient(user.tenantId, patientId, filters);
   }
 
+  @Get('patient/:patientId')
+  @ApiOperation({ summary: 'Listar documentos do paciente' })
+  listByPatient(
+    @CurrentUser() user: AuthUser,
+    @Param('patientId') patientId: string,
+    @Query('category') category?: string,
+  ) {
+    return this.service.findByPatient(user.tenantId, patientId, category ? { category } : {});
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar documento por ID' })
   findById(@CurrentUser() user: AuthUser, @Param('id') id: string) {

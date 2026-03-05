@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
+import * as puppeteer from 'puppeteer';
+
 type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
 
 type FabricObject = {
@@ -28,6 +30,10 @@ type FabricCanvasJson = {
 @Injectable()
 export class PdfEngineService {
   private readonly store: Item[] = [];
+  private readonly pdfRuntime = {
+    product: 'chrome',
+    executablePath: puppeteer.executablePath(),
+  };
 
   private readonly defaultPageWidth = 794;
 
@@ -89,7 +95,7 @@ export class PdfEngineService {
   }
 
   execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
-    return { action, tenantId, actorId, status: 'queued', payload };
+    return { action, tenantId, actorId, status: 'queued', payload, runtime: this.pdfRuntime };
   }
 
 
