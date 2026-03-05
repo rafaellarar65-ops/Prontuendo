@@ -1,191 +1,70 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
 
-type ProtocolStatus = 'ACTIVE' | 'INACTIVE';
+import { CreateProtocolDto } from './dto/create-protocol.dto';
+import { ListProtocolsDto } from './dto/list-protocols.dto';
+import { UpdateProtocolDto } from './dto/update-protocol.dto';
 
-type ProtocolJsonPayload = Record<string, unknown>;
-
-type ProtocolCreateDto = {
-  name?: string;
-  title?: string;
-  targetCondition?: string;
-  status?: ProtocolStatus;
-  steps?: unknown;
-  medications?: unknown;
-  inclusionCriteria?: unknown;
-  [key: string]: unknown;
-};
-
-type ProtocolUpdateDto = ProtocolCreateDto;
-
-type ProtocolFilters = {
-  targetCondition?: string;
-  status?: ProtocolStatus;
+type Item = CreateProtocolDto & {
+  id: string;
+  tenantId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 @Injectable()
 export class ProtocolsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly store: Item[] = [];
 
-  private get protocolDelegate() {
-    return (this.prisma as unknown as { protocol: any }).protocol;
-  }
-
-  private ensureJsonObject(value: unknown, field: string): ProtocolJsonPayload {
-    if (value === undefined || value === null) {
-      return {};
-    }
-
-    if (typeof value === 'string') {
-      const parsed = JSON.parse(value) as unknown;
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-        throw new TypeError(`${field} must be a JSON object`);
+  list(tenantId: string, query: ListProtocolsDto) {
+    const filtered = this.store.filter((item) => {
+      if (item.tenantId !== tenantId) {
+        return false;
       }
 
-      return parsed as ProtocolJsonPayload;
-    }
-
-    if (Array.isArray(value) || typeof value !== 'object') {
-      throw new TypeError(`${field} must be a JSON object`);
-    }
-
-    return value as ProtocolJsonPayload;
-  }
-
-  private ensureJsonArray(value: unknown, field: string): unknown[] {
-    if (value === undefined || value === null) {
-      return [];
-    }
-
-    if (typeof value === 'string') {
-      const parsed = JSON.parse(value) as unknown;
-      if (!Array.isArray(parsed)) {
-        throw new TypeError(`${field} must be a JSON array`);
+      if (query.condition && item.targetCondition !== query.condition) {
+        return false;
       }
 
-      return parsed;
+      if (query.status && item.status !== query.status) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const start = (query.page - 1) * query.perPage;
+    const end = start + query.perPage;
+    return filtered.slice(start, end);
+  }
+
+  create(tenantId: string, actorId: string, dto: CreateProtocolDto) {
+    const now = new Date().toISOString();
+    const item: Item = { id: randomUUID(), tenantId, ...dto, createdBy: actorId, createdAt: now, updatedAt: now };
+    this.store.push(item);
+    return item;
+  }
+
+  update(tenantId: string, id: string, dto: UpdateProtocolDto) {
+    const item = this.store.find((entry) => entry.tenantId === tenantId && entry.id === id);
+    if (!item) {
+      return null;
     }
 
-    if (!Array.isArray(value)) {
-      throw new TypeError(`${field} must be a JSON array`);
+    Object.assign(item, dto);
+    item.updatedAt = new Date().toISOString();
+    return item;
+  }
+
+  remove(tenantId: string, id: string) {
+    const index = this.store.findIndex((entry) => entry.tenantId === tenantId && entry.id === id);
+    if (index < 0) {
+      return { deleted: false };
     }
 
-    return value;
-  }
-
-  private normalizePayload<T extends ProtocolCreateDto | ProtocolUpdateDto>(dto: T) {
-    return {
-      ...dto,
-      steps: this.ensureJsonArray(dto.steps, 'steps'),
-      medications: this.ensureJsonArray(dto.medications, 'medications'),
-      inclusionCriteria: this.ensureJsonObject(dto.inclusionCriteria, 'inclusionCriteria'),
-    };
-  }
-
-  list(tenantId: string) {
-    return this.findAll(tenantId, {});
-  }
-
-  async create(tenantId: string, actorId: string, dto: ProtocolCreateDto) {
-    const payload = this.normalizePayload(dto);
-
-    return this.protocolDelegate.create({
-      data: {
-        ...payload,
-        tenantId,
-        createdBy: actorId,
-        updatedBy: actorId,
-        status: payload.status ?? 'INACTIVE',
-      },
-    });
-  }
-
-  async findAll(tenantId: string, filters: ProtocolFilters = {}) {
-    return this.protocolDelegate.findMany({
-      where: {
-        tenantId,
-        ...(filters.targetCondition ? { targetCondition: filters.targetCondition } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async findById(tenantId: string, id: string) {
-    const protocol = await this.protocolDelegate.findFirst({
-      where: { tenantId, id },
-    });
-
-    if (!protocol) {
-      throw new NotFoundException(`Protocol ${id} not found for tenant ${tenantId}`);
-    }
-
-    return protocol;
-  }
-
-  async update(tenantId: string, id: string, actorId: string, dto: ProtocolUpdateDto) {
-    await this.findById(tenantId, id);
-    const payload = this.normalizePayload(dto);
-
-    await this.protocolDelegate.updateMany({
-      where: { tenantId, id },
-      data: {
-        ...payload,
-        updatedBy: actorId,
-      },
-    });
-
-    return this.findById(tenantId, id);
-  }
-
-  async activate(tenantId: string, id: string, actorId: string) {
-    await this.findById(tenantId, id);
-
-    await this.protocolDelegate.updateMany({
-      where: { tenantId, id },
-      data: {
-        status: 'ACTIVE',
-        updatedBy: actorId,
-      },
-    });
-
-    return this.findById(tenantId, id);
-  }
-
-  async deactivate(tenantId: string, id: string, actorId: string) {
-    await this.findById(tenantId, id);
-
-    await this.protocolDelegate.updateMany({
-      where: { tenantId, id },
-      data: {
-        status: 'INACTIVE',
-        updatedBy: actorId,
-      },
-    });
-
-    return this.findById(tenantId, id);
-  }
-
-  async suggestForDiagnosis(tenantId: string, diagnosisCodes: string[]) {
-    const normalizedCodes = diagnosisCodes.map((code) => code.trim()).filter(Boolean);
-
-    return this.protocolDelegate.findMany({
-      where: {
-        tenantId,
-        status: 'ACTIVE',
-        targetCondition: {
-          in: normalizedCodes,
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-  }
-
-  async remove(tenantId: string, id: string) {
-    await this.findById(tenantId, id);
-    await this.protocolDelegate.deleteMany({ where: { tenantId, id } });
-
+    this.store.splice(index, 1);
     return { deleted: true };
   }
 

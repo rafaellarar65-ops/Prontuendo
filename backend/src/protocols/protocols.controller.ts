@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
-import { GenericPayloadDto } from '../common/dto/generic-payload.dto';
+import { CreateProtocolDto } from './dto/create-protocol.dto';
+import { ListProtocolsDto } from './dto/list-protocols.dto';
+import { UpdateProtocolDto } from './dto/update-protocol.dto';
 import { ProtocolsService } from './protocols.service';
 
 @ApiTags('protocols')
@@ -13,20 +15,20 @@ export class ProtocolsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar registros do módulo' })
-  list(@CurrentUser() user: AuthUser) {
-    return this.service.list(user.tenantId);
+  list(@CurrentUser() user: AuthUser, @Query() query: ListProtocolsDto) {
+    return this.service.list(user.tenantId, query);
   }
 
   @Post()
   @ApiOperation({ summary: 'Criar registro do módulo' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: GenericPayloadDto) {
-    return this.service.create(user.tenantId, user.sub, dto.payload);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateProtocolDto) {
+    return this.service.create(user.tenantId, user.sub, dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar registro do módulo' })
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.update(user.tenantId, id, user.sub, dto.payload);
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateProtocolDto) {
+    return this.service.update(user.tenantId, id, dto);
   }
 
   @Delete(':id')
@@ -37,8 +39,7 @@ export class ProtocolsController {
 
   @Post(':id/ai-consensus')
   @ApiOperation({ summary: 'Consenso multi-IA de protocolo' })
-  aiConsensus(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GenericPayloadDto) {
-    return this.service.execute('ai-consensus', user.tenantId, user.sub, { id, ...dto.payload });
+  aiConsensus(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.execute('ai-consensus', user.tenantId, user.sub, { id });
   }
-
 }
