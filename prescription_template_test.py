@@ -178,9 +178,6 @@ class PrescriptionTemplateTester:
                         "content": "Resultado: {{exam.result}}"
                     }
                 ]
-            },
-            "metadata": {
-                "variables": ["patient.name", "exam.type", "exam.result"]
             }
         }
         
