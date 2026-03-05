@@ -195,7 +195,7 @@ class PrescriptionTemplateTester:
             return False
         
         # Test get template by category
-        response = self.make_request("GET", "/templates/category/laudo")
+        response = self.make_request("GET", "/templates/category/LAUDO")
         if response.status_code == 200:
             category_templates = response.json()
             self.log(f"✅ Templates by category retrieved: {len(category_templates) if isinstance(category_templates, list) else 'N/A'} items")
