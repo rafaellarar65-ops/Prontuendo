@@ -7,10 +7,9 @@ export const useCreateBioimpedanceMutation = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ patientId: _, dto }: { patientId: string; dto: CreateBioimpedancePayload }) =>
-      bioimpedanceApi.create(dto),
-    onSuccess: (_, { patientId }) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.bioimpedanceEvolution(patientId) });
+    mutationFn: (dto: CreateBioimpedancePayload) => bioimpedanceApi.create(dto),
+    onSuccess: (created) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.bioimpedanceEvolution(created.patientId) });
     },
   });
 };
