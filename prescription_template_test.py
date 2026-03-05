@@ -162,7 +162,6 @@ class PrescriptionTemplateTester:
         template_data = {
             "name": "Laudo de Exame",
             "category": "LAUDO",
-            "description": "Template para laudos de exames médicos",
             "canvasJson": {
                 "version": "1.0",
                 "elements": [
@@ -179,6 +178,9 @@ class PrescriptionTemplateTester:
                         "content": "Resultado: {{exam.result}}"
                     }
                 ]
+            },
+            "metadata": {
+                "variables": ["patient.name", "exam.type", "exam.result"]
             }
         }
         
