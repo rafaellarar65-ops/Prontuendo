@@ -1,34 +1,45 @@
-import { Test } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 
-import { ProtocolStatus } from './dto/protocol-status.enum';
+import { PrismaService } from '../prisma/prisma.service';
 import { ProtocolsService } from './protocols.service';
 
 describe('ProtocolsService', () => {
-  it('deve criar e listar por tenant', async () => {
-    const moduleRef = await Test.createTestingModule({
-      providers: [ProtocolsService],
-    }).compile();
+  const protocolDelegate = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    updateMany: jest.fn(),
+    deleteMany: jest.fn(),
+  };
 
-    const service = moduleRef.get(ProtocolsService);
-    service.create('t1', 'u1', { name: 'x', condition: 'Hipertensão' });
-    service.create('t2', 'u2', { name: 'y', condition: 'Diabetes' });
+  const prisma = { protocol: protocolDelegate } as unknown as PrismaService;
 
-    expect(service.list('t1', { page: 1, perPage: 20 }).data).toHaveLength(1);
-    expect(service.list('t2', { page: 1, perPage: 20 }).data).toHaveLength(1);
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('deve ativar e desativar protocolo', async () => {
-    const moduleRef = await Test.createTestingModule({
-      providers: [ProtocolsService],
-    }).compile();
+  it('deve criar com escopo tenant e actor', async () => {
+    const service = new ProtocolsService(prisma);
+    protocolDelegate.create.mockResolvedValue({ id: 'p1' });
 
-    const service = moduleRef.get(ProtocolsService);
-    const protocol = service.create('t1', 'u1', { name: 'x', condition: 'Hipertensão' });
+    await service.create('t1', 'u1', {
+      targetCondition: 'E11',
+      steps: [],
+      medications: [],
+      inclusionCriteria: {},
+    });
 
-    const deactivated = service.deactivate('t1', protocol.id);
-    expect(deactivated?.status).toBe(ProtocolStatus.INACTIVE);
+    expect(protocolDelegate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tenantId: 't1', createdBy: 'u1', updatedBy: 'u1' }),
+      }),
+    );
+  });
 
-    const activated = service.activate('t1', protocol.id);
-    expect(activated?.status).toBe(ProtocolStatus.ACTIVE);
+  it('deve lançar NotFoundException quando protocolo não existir no tenant', async () => {
+    const service = new ProtocolsService(prisma);
+    protocolDelegate.findFirst.mockResolvedValue(null);
+
+    await expect(service.findById('t1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

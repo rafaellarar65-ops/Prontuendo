@@ -1,115 +1,195 @@
-import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
-import { CreateProtocolDto } from './dto/create-protocol.dto';
-import { ListProtocolsDto } from './dto/list-protocols.dto';
-import { ProtocolStatus } from './dto/protocol-status.enum';
-import { UpdateProtocolDto } from './dto/update-protocol.dto';
+type ProtocolStatus = 'ACTIVE' | 'INACTIVE';
 
-type Item = {
-  id: string;
-  tenantId: string;
-  name: string;
-  condition: string;
-  content: Record<string, unknown>;
-  status: ProtocolStatus;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+type ProtocolJsonPayload = Record<string, unknown>;
+
+type ProtocolCreateDto = {
+  name?: string;
+  title?: string;
+  targetCondition?: string;
+  status?: ProtocolStatus;
+  steps?: unknown;
+  medications?: unknown;
+  inclusionCriteria?: unknown;
+  [key: string]: unknown;
+};
+
+type ProtocolUpdateDto = ProtocolCreateDto;
+
+type ProtocolFilters = {
+  targetCondition?: string;
+  status?: ProtocolStatus;
 };
 
 @Injectable()
 export class ProtocolsService {
-  private readonly store: Item[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
-  list(tenantId: string, query: ListProtocolsDto) {
-    const filtered = this.store.filter((item) => {
-      if (item.tenantId !== tenantId) {
-        return false;
+  private get protocolDelegate() {
+    return (this.prisma as unknown as { protocol: any }).protocol;
+  }
+
+  private ensureJsonObject(value: unknown, field: string): ProtocolJsonPayload {
+    if (value === undefined || value === null) {
+      return {};
+    }
+
+    if (typeof value === 'string') {
+      const parsed = JSON.parse(value) as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        throw new TypeError(`${field} must be a JSON object`);
       }
 
-      if (query.condition && item.condition !== query.condition) {
-        return false;
+      return parsed as ProtocolJsonPayload;
+    }
+
+    if (Array.isArray(value) || typeof value !== 'object') {
+      throw new TypeError(`${field} must be a JSON object`);
+    }
+
+    return value as ProtocolJsonPayload;
+  }
+
+  private ensureJsonArray(value: unknown, field: string): unknown[] {
+    if (value === undefined || value === null) {
+      return [];
+    }
+
+    if (typeof value === 'string') {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new TypeError(`${field} must be a JSON array`);
       }
 
-      if (query.status && item.status !== query.status) {
-        return false;
-      }
+      return parsed;
+    }
 
-      return true;
+    if (!Array.isArray(value)) {
+      throw new TypeError(`${field} must be a JSON array`);
+    }
+
+    return value;
+  }
+
+  private normalizePayload<T extends ProtocolCreateDto | ProtocolUpdateDto>(dto: T) {
+    return {
+      ...dto,
+      steps: this.ensureJsonArray(dto.steps, 'steps'),
+      medications: this.ensureJsonArray(dto.medications, 'medications'),
+      inclusionCriteria: this.ensureJsonObject(dto.inclusionCriteria, 'inclusionCriteria'),
+    };
+  }
+
+  list(tenantId: string) {
+    return this.findAll(tenantId, {});
+  }
+
+  async create(tenantId: string, actorId: string, dto: ProtocolCreateDto) {
+    const payload = this.normalizePayload(dto);
+
+    return this.protocolDelegate.create({
+      data: {
+        ...payload,
+        tenantId,
+        createdBy: actorId,
+        updatedBy: actorId,
+        status: payload.status ?? 'INACTIVE',
+      },
+    });
+  }
+
+  async findAll(tenantId: string, filters: ProtocolFilters = {}) {
+    return this.protocolDelegate.findMany({
+      where: {
+        tenantId,
+        ...(filters.targetCondition ? { targetCondition: filters.targetCondition } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findById(tenantId: string, id: string) {
+    const protocol = await this.protocolDelegate.findFirst({
+      where: { tenantId, id },
     });
 
-    const start = (query.page - 1) * query.perPage;
-    const end = start + query.perPage;
-
-    return {
-      data: filtered.slice(start, end),
-      page: query.page,
-      perPage: query.perPage,
-      total: filtered.length,
-    };
-  }
-
-  findById(tenantId: string, id: string) {
-    return this.store.find((item) => item.tenantId === tenantId && item.id === id) ?? null;
-  }
-
-  create(tenantId: string, actorId: string, dto: CreateProtocolDto) {
-    const now = new Date().toISOString();
-    const item: Item = {
-      id: randomUUID(),
-      tenantId,
-      name: dto.name,
-      condition: dto.condition,
-      content: dto.content ?? {},
-      status: dto.status ?? ProtocolStatus.ACTIVE,
-      createdBy: actorId,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    this.store.push(item);
-    return item;
-  }
-
-  update(tenantId: string, id: string, dto: UpdateProtocolDto) {
-    const item = this.findById(tenantId, id);
-    if (!item) {
-      return null;
+    if (!protocol) {
+      throw new NotFoundException(`Protocol ${id} not found for tenant ${tenantId}`);
     }
 
-    if (dto.name !== undefined) {
-      item.name = dto.name;
-    }
-
-    if (dto.condition !== undefined) {
-      item.condition = dto.condition;
-    }
-
-    if (dto.content !== undefined) {
-      item.content = { ...item.content, ...dto.content };
-    }
-
-    if (dto.status !== undefined) {
-      item.status = dto.status;
-    }
-
-    item.updatedAt = new Date().toISOString();
-    return item;
+    return protocol;
   }
 
-  activate(tenantId: string, id: string) {
-    return this.update(tenantId, id, { status: ProtocolStatus.ACTIVE });
+  async update(tenantId: string, id: string, actorId: string, dto: ProtocolUpdateDto) {
+    await this.findById(tenantId, id);
+    const payload = this.normalizePayload(dto);
+
+    await this.protocolDelegate.updateMany({
+      where: { tenantId, id },
+      data: {
+        ...payload,
+        updatedBy: actorId,
+      },
+    });
+
+    return this.findById(tenantId, id);
   }
 
-  deactivate(tenantId: string, id: string) {
-    return this.update(tenantId, id, { status: ProtocolStatus.INACTIVE });
+  async activate(tenantId: string, id: string, actorId: string) {
+    await this.findById(tenantId, id);
+
+    await this.protocolDelegate.updateMany({
+      where: { tenantId, id },
+      data: {
+        status: 'ACTIVE',
+        updatedBy: actorId,
+      },
+    });
+
+    return this.findById(tenantId, id);
   }
 
-  suggestions(tenantId: string, diagnosis: string) {
-    return this.store
-      .filter((item) => item.tenantId === tenantId && item.status === ProtocolStatus.ACTIVE && item.condition === diagnosis)
-      .map(({ id, name, condition, status }) => ({ id, name, condition, status }));
+  async deactivate(tenantId: string, id: string, actorId: string) {
+    await this.findById(tenantId, id);
+
+    await this.protocolDelegate.updateMany({
+      where: { tenantId, id },
+      data: {
+        status: 'INACTIVE',
+        updatedBy: actorId,
+      },
+    });
+
+    return this.findById(tenantId, id);
+  }
+
+  async suggestForDiagnosis(tenantId: string, diagnosisCodes: string[]) {
+    const normalizedCodes = diagnosisCodes.map((code) => code.trim()).filter(Boolean);
+
+    return this.protocolDelegate.findMany({
+      where: {
+        tenantId,
+        status: 'ACTIVE',
+        targetCondition: {
+          in: normalizedCodes,
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async remove(tenantId: string, id: string) {
+    await this.findById(tenantId, id);
+    await this.protocolDelegate.deleteMany({ where: { tenantId, id } });
+
+    return { deleted: true };
+  }
+
+  execute(action: string, tenantId: string, actorId: string, payload: Record<string, unknown>) {
+    return { action, tenantId, actorId, status: 'queued', payload };
   }
 }
