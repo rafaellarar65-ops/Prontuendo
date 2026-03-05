@@ -4,6 +4,9 @@ export const queryKeys = {
   patientDetail: (patientId: string) => ['patients', patientId] as const,
   consultations: ['consultations'] as const,
   consultationById: (consultationId: string) => ['consultations', consultationId] as const,
+  consultationVersions: (consultationId: string) => ['consultations', consultationId, 'versions'] as const,
+  consultationVersion: (consultationId: string, version: number) =>
+    ['consultations', consultationId, 'versions', version] as const,
   consultationTemplates: ['consultation-templates'] as const,
   appointments: ['appointments'] as const,
   appointmentsByDate: (date: string) => ['appointments', date] as const,
@@ -17,17 +20,18 @@ export const queryKeys = {
     ['scores', 'history', patientId, scoreType ?? 'all'] as const,
   scoresLatest: (patientId: string) => ['scores', 'latest', patientId] as const,
   protocols: ['protocols'] as const,
-  protocolsList: (params?: { condition?: string; status?: string }) =>
-    ['protocols', 'list', params?.condition ?? 'all', params?.status ?? 'all'] as const,
-  protocolById: (protocolId: string) => ['protocols', protocolId] as const,
+  protocolsByCondition: (condition: string) => ['protocols', 'condition', condition] as const,
   glucose: (patientId: string) => ['glucose', patientId] as const,
   labResults: (patientId: string) => ['lab-results', patientId] as const,
+  documentsByPatient: (patientId: string, category?: string) =>
+    ['documents', patientId, category ?? 'all'] as const,
   prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
   activePrescriptions: (patientId: string) => ['prescriptions', 'active', patientId] as const,
   prescriptionsByConsultation: (consultationId: string) =>
     ['prescriptions', 'consultation', consultationId] as const,
   drugTemplates: ['prescriptions', 'drug-templates'] as const,
   analysis: (patientId: string) => ['analysis', patientId] as const,
+  patientPortalDocuments: (patientId: string) => ['patient-portal', 'documents', patientId] as const,
   glucoseHistory: (patientId: string) => ['glucose', patientId, 'history'] as const,
   glucoseAnalysis: (patientId: string) => ['glucose', patientId, 'analysis'] as const,
   labResultsHistory: (patientId: string, examName?: string) =>
