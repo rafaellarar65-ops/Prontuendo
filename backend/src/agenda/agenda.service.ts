@@ -1,35 +1,17 @@
-<<<<<<< HEAD
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto';
-=======
-import { randomUUID } from 'crypto';
-
-import { Injectable } from '@nestjs/common';
-
-import { PrismaService } from '../prisma/prisma.service';
-
-type Item = { id: string; tenantId: string; payload: Record<string, unknown>; createdBy: string; createdAt: string; updatedAt: string };
->>>>>>> origin/main
 
 @Injectable()
 export class AgendaService {
   constructor(private readonly prisma: PrismaService) {}
 
-<<<<<<< HEAD
   /**
    * Lista agendamentos de um tenant, opcionalmente filtrando por data
    */
   async list(tenantId: string, date?: string) {
     const where: Prisma.AppointmentWhereInput = { tenantId };
-=======
-  constructor(private readonly prisma: PrismaService) {}
-
-  list(tenantId: string) {
-    return this.store.filter((item) => item.tenantId === tenantId);
-  }
->>>>>>> origin/main
 
     if (date) {
       // Filtra pela data específica

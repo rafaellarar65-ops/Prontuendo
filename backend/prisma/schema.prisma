@@ -73,9 +73,6 @@ model Tenant {
   glucoseLogs       GlucoseLog[]
   labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
-<<<<<<< HEAD
-  appointments     Appointment[]
-=======
   prescriptions     Prescription[]
   medications       Medication[]
   drugTemplates     DrugTemplate[]
@@ -83,7 +80,6 @@ model Tenant {
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
   documents         Document[]
->>>>>>> origin/main
 }
 
 model User {
@@ -127,14 +123,10 @@ model Patient {
   glucoseLogs       GlucoseLog[]
   labResults        LabResult[]
   bioimpedanceExams BioimpedanceExam[]
-<<<<<<< HEAD
-  appointments     Appointment[]
-=======
   prescriptions     Prescription[]
   clinicalScores    ClinicalScore[]
   appointments      Appointment[]
   documents         Document[]
->>>>>>> origin/main
 
   @@unique([id, tenantId])
   @@index([tenantId, fullName])
@@ -378,29 +370,13 @@ model BioimpedanceExam {
   @@index([tenantId, patientId, measuredAt])
 }
 
-<<<<<<< HEAD
-enum AppointmentType {
-  PRIMEIRA_CONSULTA
-  RETORNO
-  TELECONSULTA
-  EXAME
-}
-
-enum AppointmentStatus {
-  AGENDADO
-  CONFIRMADO
-  EM_ANDAMENTO
-  CONCLUIDO
-  CANCELADO
-}
-
 model Appointment {
   id          String            @id @default(cuid())
   tenantId    String
   patientId   String
   clinicianId String
   date        DateTime          @db.Date
-  time        String            // HH:mm format
+  time        String
   type        AppointmentType   @default(RETORNO)
   status      AppointmentStatus @default(AGENDADO)
   notes       String?
@@ -413,23 +389,4 @@ model Appointment {
   @@index([tenantId, date])
   @@index([tenantId, patientId])
   @@index([tenantId, clinicianId, date])
-=======
-model Appointment {
-  id        String            @id @default(cuid())
-  tenantId  String
-  patientId String
-  date      DateTime
-  time      String
-  type      AppointmentType
-  status    AppointmentStatus @default(AGENDADO)
-  notes     String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  tenant    Tenant            @relation(fields: [tenantId], references: [id])
-  patient   Patient           @relation(fields: [patientId], references: [id])
-
-  @@unique([id, tenantId])
-  @@index([tenantId, date, time])
-  @@index([tenantId, patientId, date])
->>>>>>> origin/main
 }
