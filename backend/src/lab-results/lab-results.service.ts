@@ -7,7 +7,7 @@ import { LAB_REPORT_ANALYZER_PROMPT } from './lab-report-prompt';
 
 @Injectable()
 export class LabResultsService {
-  private genAI: GoogleGenerativeAI;
+  private genAI?: GoogleGenerativeAI;
   private readonly logger = new Logger(LabResultsService.name);
 
   constructor(
