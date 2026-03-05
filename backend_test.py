@@ -383,7 +383,7 @@ class BackendTester:
         results = {}
         
         self.log("=" * 60)
-        self.log("BACKEND API TESTING - CONSULTATION TABS & PATIENT NAVIGATION")
+        self.log("BACKEND API TESTING - AI LAB ANALYSIS & CONSULTATION FEATURES")
         self.log("=" * 60)
         
         # Core authentication test
@@ -395,6 +395,10 @@ class BackendTester:
         # Patient navigation tests
         results["patients_list"] = self.test_patients_list()
         results["patient_detail"] = self.test_patient_detail()
+        
+        # Lab Results and AI Analysis tests (NEW)
+        results["lab_results_crud"] = self.test_lab_results_crud()
+        results["ai_lab_analysis"] = self.test_ai_lab_analysis()
         
         # Consultation tabs tests
         results["create_consultation"] = self.test_create_consultation()
