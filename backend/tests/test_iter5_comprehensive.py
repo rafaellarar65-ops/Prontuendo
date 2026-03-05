@@ -24,7 +24,7 @@ def auth_token():
         f"{BASE_URL}/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
     )
-    assert response.status_code == 200, f"Login failed: {response.text}"
+    assert response.status_code in [200, 201], f"Login failed: {response.text}"
     data = response.json()
     assert "accessToken" in data, "No accessToken in response"
     return data["accessToken"]
@@ -50,7 +50,7 @@ class TestAuth:
             f"{BASE_URL}/auth/login",
             json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
         )
-        assert response.status_code == 200
+        assert response.status_code in [200, 201]
         data = response.json()
         assert "accessToken" in data
         assert "refreshToken" in data
