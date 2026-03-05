@@ -452,6 +452,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
         ...prev,
         source: 'ia',
         fieldsSource,
+      }));
     },
     onError: () => {
       setFileError('Não foi possível extrair os dados do exame com IA.');

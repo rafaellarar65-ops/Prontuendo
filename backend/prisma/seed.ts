@@ -65,7 +65,7 @@ const globalDrugTemplates: DrugTemplateSeed[] = [
 const defaultDocumentTemplates: DocumentTemplateSeed[] = [
   {
     id: 'doc-template-receituario-simples',
-    category: 'PRESCRICAO',
+    category: 'RECEITUARIO',
     name: 'Receituário simples',
     description: 'Modelo padrão para prescrição médica em texto livre.',
     isDefault: true,
@@ -135,7 +135,7 @@ const defaultDocumentTemplates: DocumentTemplateSeed[] = [
   },
   {
     id: 'doc-template-solicitacao-exames',
-    category: 'EXAMES',
+    category: 'SOLICITACAO_EXAME',
     name: 'Solicitação de exames',
     description: 'Modelo de pedido laboratorial com espaço para lista de exames.',
     isDefault: true,
@@ -190,7 +190,7 @@ async function main() {
     },
   })
 
-  const doctorHash = await bcrypt.hash('crucru22', 10)
+  const doctorHash = await bcrypt.hash('12345678', 10)
   const doctor = await prisma.user.upsert({
     where: { tenantId_email: { tenantId, email: 'rafaellarar65@gmail.com' } },
     update: { passwordHash: doctorHash },
@@ -221,23 +221,21 @@ async function main() {
   let upsertedDocumentTemplates = 0
 
   if (prismaAny.drugTemplate) {
+    // First, clean up existing global templates
+    await prismaAny.drugTemplate.deleteMany({
+      where: { tenantId: globalTemplatesTenantId }
+    })
+
+    // Then create new templates
     for (const template of globalDrugTemplates) {
-      await prismaAny.drugTemplate.upsert({
-        where: {
-          tenantId_name: {
-            tenantId: globalTemplatesTenantId,
-            name: template.name,
-          },
-        },
-        update: {
-          group: template.group,
-          isGlobal: true,
+      await prismaAny.drugTemplate.create({
+        data: {
           tenantId: globalTemplatesTenantId,
-        },
-        create: {
-          tenantId: globalTemplatesTenantId,
-          name: template.name,
-          group: template.group,
+          genericName: template.name,
+          class: template.group,
+          defaultDose: '1x/dia',
+          defaultRoute: 'oral',
+          defaultFreq: '1x/dia',
           isGlobal: true,
         },
       })

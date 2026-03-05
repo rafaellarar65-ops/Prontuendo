@@ -27,11 +27,9 @@ export class PrescriptionsService {
       clinicianId,
       patientId: dto.patientId,
       consultationId: dto.consultationId ?? null,
-      issuedAt: dto.issuedAt ? new Date(String(dto.issuedAt)) : new Date(),
       validUntil: dto.validUntil ? new Date(String(dto.validUntil)) : null,
       status: (dto.status as PrescriptionStatus | undefined) ?? 'ATIVA',
       notes: dto.notes ?? null,
-      items: (dto.items ?? []) as Prisma.InputJsonValue,
     };
 
     const prescription = await this.prescription.create({ data });
@@ -56,7 +54,7 @@ export class PrescriptionsService {
   findByPatient(tenantId: string, patientId: string, limit = 20) {
     return this.prescription.findMany({
       where: { tenantId, patientId },
-      orderBy: { issuedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: limit,
     });
   }
@@ -64,7 +62,7 @@ export class PrescriptionsService {
   findByConsultation(tenantId: string, consultationId: string) {
     return this.prescription.findMany({
       where: { tenantId, consultationId },
-      orderBy: { issuedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -78,7 +76,7 @@ export class PrescriptionsService {
         status: 'ATIVA',
         OR: [{ validUntil: null }, { validUntil: { gte: today } }],
       },
-      orderBy: { issuedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -118,9 +116,7 @@ export class PrescriptionsService {
         patientId: current.patientId,
         consultationId: current.consultationId,
         clinicianId: current.clinicianId,
-        items: current.items as Prisma.InputJsonValue,
         notes: current.notes ?? null,
-        issuedAt: new Date(),
         validUntil: validUntil ? new Date(String(validUntil)) : null,
         status: 'ATIVA',
       },
@@ -141,7 +137,7 @@ export class PrescriptionsService {
 
   // Compatibilidade com endpoints legados
   list(tenantId: string) {
-    return this.prescription.findMany({ where: { tenantId }, orderBy: { issuedAt: 'desc' } });
+    return this.prescription.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' } });
   }
 
   update(tenantId: string, id: string, payload: Record<string, unknown>) {

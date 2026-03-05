@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
-import path from 'path';
+import * as path from 'path';
 
 import { BadRequestException, Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
