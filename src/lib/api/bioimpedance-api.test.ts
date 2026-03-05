@@ -74,3 +74,35 @@ describe('bioimpedance evolution compatibility', () => {
     ]);
   });
 });
+
+describe('bioimpedance api', () => {
+  it('posts create payload to patient scoped endpoint', async () => {
+    const postSpy = vi.spyOn(http, 'post').mockResolvedValue({
+      data: {
+        id: 'exam-1',
+        tenantId: 'tenant-1',
+        patientId: 'patient-1',
+        measuredAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        bodyFatPct: 19,
+        muscleMassKg: 33,
+      },
+    } as never);
+
+    await bioimpedanceApi.create({
+      patientId: 'patient-1',
+      measuredAt: '2026-01-01T00:00:00.000Z',
+      bodyFatPct: 19,
+      muscleMassKg: 33,
+      metadata: { source: 'manual' },
+    });
+
+    expect(postSpy).toHaveBeenCalledWith('/bioimpedance/patient-1', {
+      measuredAt: '2026-01-01T00:00:00.000Z',
+      bodyFatPct: 19,
+      muscleMassKg: 33,
+      metadata: { source: 'manual' },
+    });
+  });
+});
+

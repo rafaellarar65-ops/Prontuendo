@@ -14,11 +14,11 @@ import { useGlucoseAnalysisQuery } from '@/features/glucose/use-glucose-analysis
 import { useGlucoseQuery } from '@/features/glucose/use-glucose-query';
 import { useCreateGlucoseMutation } from '@/features/glucose/use-create-glucose-mutation';
 import { useBioimpedanceEvolutionQuery } from '@/features/bioimpedance/use-bioimpedance-evolution-query';
-import { bioimpedanceApi } from '@/lib/api/bioimpedance-api';
+import { useCreateBioimpedanceMutation } from '@/features/bioimpedance/use-create-bioimpedance-mutation';
 import { aiApi } from '@/lib/api/ai-api';
 import { documentsApi } from '@/lib/api/documents-api';
 import type { CreateLabResultDto } from '@/types/clinical-modules';
-import type { BioimpedancePoint } from '@/types/bioimpedance';
+import type { BioimpedanceMetadata, BioimpedancePoint } from '@/types/bioimpedance';
 import type { Patient, UpdatePatientDto } from '@/types/api';
 import type { Document, DocumentCategory } from '@/types/documents';
 import { parseBrNumber } from '@/lib/utils/parse-br-number';
@@ -391,7 +391,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<Record<string, unknown>>({
+  const [metadata, setMetadata] = useState<BioimpedanceDraftMetadata>({
     source: 'manual',
     originalFile: null,
     fieldsSource: {},
@@ -408,27 +408,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
     imc: '',
   });
 
-  const createMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof bioimpedanceApi.create>[0]) => bioimpedanceApi.create(payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['bioimpedance', 'evolution', patientId] });
-      setShowModal(false);
-      setFileError(null);
-      setSelectedFileName(null);
-      setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
-      setForm({
-        measuredAt: new Date().toISOString().slice(0, 10),
-        weightKg: '',
-        bodyFatPct: '',
-        muscleMassKg: '',
-        bodyWaterPct: '',
-        visceralFatLevel: '',
-        basalMetabolicRateKcal: '',
-        boneMassKg: '',
-        imc: '',
-      });
-    },
-  });
+  const createMutation = useCreateBioimpedanceMutation();
 
   const extractMutation = useMutation({
     mutationFn: (text: string) => aiApi.extractBioimpedance(text),
@@ -508,7 +488,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
     setMetadata((prev) => ({
       ...prev,
       fieldsSource: {
-        ...(typeof prev.fieldsSource === 'object' && prev.fieldsSource !== null ? prev.fieldsSource as Record<string, BioFieldSource> : {}),
+        ...prev.fieldsSource,
         [name]: 'manual',
       },
     }));
@@ -557,7 +537,7 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-slate-400" /></div>;
 
-  const fieldsSource = (metadata.fieldsSource as Record<string, BioFieldSource> | undefined) ?? {};
+  const fieldsSource = metadata.fieldsSource;
 
   return (
     <div className="space-y-3">
@@ -612,6 +592,24 @@ const BioimpedanceTab = ({ patientId, patient }: { patientId: string; patient: P
                   imc: form.imc ? Number(form.imc) : null,
                   heightMUsedForImc: heightInMeters,
                 },
+              },
+            }, {
+              onSuccess: () => {
+                setShowModal(false);
+                setFileError(null);
+                setSelectedFileName(null);
+                setMetadata({ source: 'manual', originalFile: null, fieldsSource: {} });
+                setForm({
+                  measuredAt: new Date().toISOString().slice(0, 10),
+                  weightKg: '',
+                  bodyFatPct: '',
+                  muscleMassKg: '',
+                  bodyWaterPct: '',
+                  visceralFatLevel: '',
+                  basalMetabolicRateKcal: '',
+                  boneMassKg: '',
+                  imc: '',
+                });
               },
             });
           }}>
