@@ -1,8 +1,6 @@
 import { http } from '@/lib/api/http';
 
-export type ScoreType = 'imc' | 'chads2vasc' | 'hasbled';
-
-export type ScoreName = 'HOMA-IR' | 'FINDRISC' | 'BMI' | 'CKD-EPI' | 'BMR';
+export type ScoreType = 'imc' | 'chads2vasc' | 'hasbled' | 'homa_ir' | 'findrisc' | 'bmr' | 'ckd_epi' | (string & {});
 
 export interface ImcScoreInput {
   weightKg: number;
@@ -37,7 +35,7 @@ export interface ClinicalScoreInputByType {
   hasbled: HasBledScoreInput;
 }
 
-export type ClinicalScoreInput<TType extends ScoreType = ScoreType> = ClinicalScoreInputByType[TType];
+export type ClinicalScoreInput<TType extends ScoreType = ScoreType> = TType extends keyof ClinicalScoreInputByType ? ClinicalScoreInputByType[TType] : Record<string, string | number | boolean>;
 
 export interface ClinicalScoreResult<TType extends ScoreType = ScoreType> {
   patientId: string;
@@ -48,15 +46,12 @@ export interface ClinicalScoreResult<TType extends ScoreType = ScoreType> {
   breakdown?: Record<string, number | string | boolean>;
 }
 
-export interface ClinicalScoreHistoryRecord<TName extends ScoreName = ScoreName> {
+export interface ClinicalScoreHistoryRecord<TType extends ScoreType = ScoreType> {
   id: string;
   patientId: string;
-  scoreName: TName;
-  inputs: Record<string, unknown>;
-  result: {
-    value: string | number;
-    interpretation?: string | null;
-  };
+  scoreType: TType;
+  inputs: ClinicalScoreInput<TType>;
+  result: ClinicalScoreResult<TType>;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,7 +65,7 @@ export interface LatestScoresPayload {
   homaIr?: ScoreMetric | null;
   imc?: ScoreMetric | null;
   estimatedHba1c?: ScoreMetric | null;
-  [key: ScoreName | string]: unknown;
+  [key: string]: unknown;
 }
 
 export const scoresApi = {
@@ -87,20 +82,20 @@ export const scoresApi = {
     return data;
   },
 
-  async history<TName extends ScoreName = ScoreName>(
+  async history<TType extends ScoreType = ScoreType>(
     patientId: string,
-    scoreName?: TName,
-  ): Promise<Array<ClinicalScoreHistoryRecord<TName>>> {
-    const { data } = await http.get<Array<ClinicalScoreHistoryRecord<TName>>>('/scores', {
+    scoreType?: TType,
+  ): Promise<Array<ClinicalScoreHistoryRecord<TType>>> {
+    const { data } = await http.get<Array<ClinicalScoreHistoryRecord<TType>>>('/scores', {
       params: {
         patientId,
-        ...(scoreName ? { scoreName } : {}),
+        ...(scoreType ? { scoreType } : {}),
       },
     });
     return data;
   },
 
-  async latestByPatient(patientId: string): Promise<LatestScoresPayload> {
+  async latest(patientId: string): Promise<LatestScoresPayload> {
     const { data } = await http.get<LatestScoresPayload>('/scores/latest', {
       params: { patientId },
     });
