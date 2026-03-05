@@ -161,7 +161,7 @@ class PrescriptionTemplateTester:
         # Test create template
         template_data = {
             "name": "Laudo de Exame",
-            "category": "laudo",
+            "category": "LAUDO",
             "canvasJson": {
                 "version": "1.0",
                 "elements": [
