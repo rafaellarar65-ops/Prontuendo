@@ -141,7 +141,7 @@ export class PrescriptionsService {
 
   // Compatibilidade com endpoints legados
   list(tenantId: string) {
-    return this.prescription.findMany({ where: { tenantId }, orderBy: { issuedAt: 'desc' } });
+    return this.prescription.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' } });
   }
 
   update(tenantId: string, id: string, payload: Record<string, unknown>) {
