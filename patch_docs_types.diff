@@ -1,0 +1,36 @@
+diff --git a/src/types/documents.ts b/src/types/documents.ts
+deleted file mode 100644
+index 848cfc6..0000000
+--- a/src/types/documents.ts
++++ /dev/null
+@@ -1,30 +0,0 @@
+-export type DocumentCategory =
+-  | 'EXAME'
+-  | 'RECEITA'
+-  | 'ATESTADO'
+-  | 'RELATORIO'
+-  | 'OUTRO';
+-
+-export interface Document {
+-  id: string;
+-  tenantId: string;
+-  patientId: string;
+-  fileName: string;
+-  mimeType: string;
+-  size: number;
+-  category: DocumentCategory;
+-  description?: string | null;
+-  isFromPortal?: boolean;
+-  sharedWithPatient?: boolean;
+-  uploadedAt: string;
+-  createdAt: string;
+-  updatedAt: string;
+-}
+-
+-export interface UploadDocumentDto {
+-  file: File;
+-  patientId: string;
+-  category: DocumentCategory;
+-  description?: string;
+-  isFromPortal?: boolean;
+-}
